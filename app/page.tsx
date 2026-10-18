@@ -1,11 +1,21 @@
+import { Suspense } from "react";
+import Workbench from "@/components/workbench/Workbench";
+
+function WorkbenchFallback() {
+  return (
+    <div className="grid h-dvh place-items-center text-sm text-zinc-500">
+      <span className="animate-pulse">Loading workbench...</span>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-4 px-6">
-      <h1 className="text-4xl font-semibold tracking-tight">Motion Brief</h1>
-      <p className="text-lg opacity-70">
-        Narrate an animation, pin it to the exact frame, and get a precise
-        prompt for your AI coding agent.
-      </p>
+    <main className="flex-1">
+      {/* Sandpack reads the clock while rendering, so it streams in behind Suspense. */}
+      <Suspense fallback={<WorkbenchFallback />}>
+        <Workbench />
+      </Suspense>
     </main>
   );
 }
