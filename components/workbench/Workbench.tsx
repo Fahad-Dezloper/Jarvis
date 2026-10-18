@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import {
-  SandpackCodeEditor,
-  SandpackPreview,
-  SandpackProvider,
-  type SandpackTheme,
-} from "@codesandbox/sandpack-react";
+import { SandpackProvider, type SandpackTheme } from "@codesandbox/sandpack-react";
 import {
   AlertTriangle,
   FileCode2,
@@ -17,6 +12,7 @@ import {
   Upload,
   ClipboardPaste,
 } from "lucide-react";
+import { Studio } from "./Studio";
 import { SAMPLES } from "@/lib/sandbox/samples";
 import {
   buildProject,
@@ -88,6 +84,7 @@ export default function Workbench() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback((sources: ImportedSource[], name: string, id: string | null = null) => {
@@ -148,53 +145,8 @@ export default function Workbench() {
     }
   };
 
-  return (
-    <div className="flex h-dvh min-h-[640px] flex-col">
-      <header className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-5 py-3">
-        <div className="flex items-center gap-3">
-          <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-[#8b7cff] to-[#5ee1c1] text-[#0b0b10]">
-            <Play className="size-4 fill-current" />
-          </div>
-          <div className="leading-tight">
-            <h1 className="text-[15px] font-semibold tracking-tight">Motion Brief</h1>
-            <p className="text-xs text-zinc-500">Import an animation. Watch it run. Edit it live.</p>
-          </div>
-        </div>
-        <div className="hidden items-center gap-2 text-xs text-zinc-500 sm:flex">
-          <FileCode2 className="size-3.5" />
-          <span className="max-w-[40ch] truncate">{label}</span>
-        </div>
-      </header>
-
-      <SandpackProvider
-        key={runId}
-        template={project.template}
-        theme={theme}
-        files={project.files}
-        customSetup={{ dependencies: project.dependencies }}
-        options={{
-          externalResources: project.externalResources,
-          activeFile: project.activeFile,
-          visibleFiles: project.visibleFiles,
-          recompileMode: "delayed",
-          recompileDelay: 350,
-        }}
-      >
-        <div className="mb-sandpack grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-2">
-          <section
-            className={`relative flex min-h-0 flex-col border-white/[0.07] lg:border-r ${dragging ? "bg-[#8b7cff]/5" : ""}`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              if (e.dataTransfer.files.length) void readFiles(e.dataTransfer.files);
-            }}
-          >
-            <div className="border-b border-white/[0.07] bg-[#0f0f16] p-4">
+  const importPanel = (
+    <>
               <div className="mb-3 flex gap-1 rounded-lg bg-white/[0.04] p-1">
                 {TABS.map(({ id, label: tl, icon: Icon }) => (
                   <button
@@ -299,22 +251,51 @@ export default function Workbench() {
                   {error}
                 </p>
               )}
-            </div>
+    </>
+  );
 
-            <div className="min-h-[280px] flex-1">
-              <SandpackCodeEditor showLineNumbers showTabs closableTabs={false} style={{ height: "100%" }} />
-            </div>
-          </section>
-
-          <section className="min-h-[360px] bg-[#0b0b10]">
-            <SandpackPreview
-              showNavigator={false}
-              showOpenInCodeSandbox={false}
-              showRefreshButton
-              style={{ height: "100%" }}
-            />
-          </section>
+  return (
+    <div className="flex h-dvh min-h-[640px] flex-col">
+      <header className="flex items-center justify-between gap-4 border-b border-white/[0.07] px-5 py-2.5">
+        <div className="flex items-center gap-3">
+          <div className="grid size-8 place-items-center rounded-lg bg-gradient-to-br from-[#8b7cff] to-[#5ee1c1] text-[#0b0b10]">
+            <Play className="size-4 fill-current" />
+          </div>
+          <div className="leading-tight">
+            <h1 className="text-[15px] font-semibold tracking-tight">Motion Brief</h1>
+            <p className="text-xs text-zinc-500">Watch it, say what is wrong, hand over a precise prompt.</p>
+          </div>
         </div>
+        <div className="hidden items-center gap-2 text-xs text-zinc-500 sm:flex">
+          <FileCode2 className="size-3.5" />
+          <span className="max-w-[40ch] truncate">{label}</span>
+        </div>
+      </header>
+
+      <SandpackProvider
+        key={runId}
+        template={project.template}
+        theme={theme}
+        files={project.files}
+        customSetup={{ dependencies: project.dependencies }}
+        options={{
+          externalResources: project.externalResources,
+          activeFile: project.activeFile,
+          visibleFiles: project.visibleFiles,
+          recompileMode: "delayed",
+          recompileDelay: 350,
+        }}
+      >
+        <Studio
+          project={project}
+          label={label}
+          importPanel={importPanel}
+          collapsed={collapsed}
+          onToggleCollapsed={() => setCollapsed((c) => !c)}
+          dragging={dragging}
+          onDragState={setDragging}
+          onDropFiles={(files) => void readFiles(files)}
+        />
       </SandpackProvider>
     </div>
   );

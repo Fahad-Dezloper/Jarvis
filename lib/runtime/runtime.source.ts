@@ -824,6 +824,9 @@ export const RUNTIME_SOURCE: string = String.raw`
         childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style']
       });
     }
+    if (doc.readyState === 'loading') {
+      doc.addEventListener('DOMContentLoaded', function () { scheduleScan(); });
+    }
     if (doc.readyState !== 'complete') {
       win.addEventListener('load', function () { win.setTimeout(function () { scan(false); }, 100); });
     }

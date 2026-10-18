@@ -17,20 +17,46 @@ function laneSpan(a: AnimationInfo): { start: number; length: number } {
   return { start: Math.max(0, a.delayMs), length: Math.max(0, a.durationMs * count) };
 }
 
+export interface TimelineMarker {
+  id: string;
+  timeMs: number;
+  label: string;
+}
+
 export interface TimelineProps {
   playback: Playback;
+  /** Moments to flag on the scrubber, e.g. narration pins. */
+  markers?: TimelineMarker[];
+  onSelectMarker?: (marker: TimelineMarker) => void;
   /** Called when a lane with a selector is clicked. */
   onSelectLane?: (animation: AnimationInfo) => void;
   className?: string;
 }
 
-export function Timeline({ playback, onSelectLane, className = "" }: TimelineProps) {
+export function Timeline({ playback, markers, onSelectMarker, onSelectLane, className = "" }: TimelineProps) {
   const { animations, timeMs, totalMs, seek, ready } = playback;
   const pct = totalMs > 0 ? Math.min(100, (timeMs / totalMs) * 100) : 0;
 
   return (
     <div className={"rounded-xl border border-white/10 bg-zinc-900/80 p-3 " + className}>
       <div className="relative">
+        {markers && markers.length > 0 && totalMs > 0 && (
+          <div className="relative mb-1 h-3.5" aria-label="Pins">
+            {markers.map((m, i) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => onSelectMarker?.(m)}
+                title={m.label}
+                aria-label={"Pin " + (i + 1) + ": " + m.label}
+                className="absolute top-0 grid size-3.5 -translate-x-1/2 place-items-center rounded-full bg-amber-300 text-[8px] font-bold leading-none text-zinc-900 hover:scale-125"
+                style={{ left: Math.min(100, Math.max(0, (m.timeMs / totalMs) * 100)) + "%" }}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        )}
         <input
           type="range"
           min={0}

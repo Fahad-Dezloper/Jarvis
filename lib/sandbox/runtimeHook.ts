@@ -1,18 +1,19 @@
+import { RUNTIME_SOURCE } from "@/lib/runtime/runtime.source";
+
+export { RUNTIME_SOURCE };
+
 /**
  * Hook point for the playback runtime (Phase 2).
  *
- * Phase 2 replaces RUNTIME_SOURCE with the bundled runtime code. While it is
- * an empty string the sandbox behaves exactly as if no runtime existed: the
- * file is not added and the entry snippet is empty.
+ * The runtime source lives in lib/runtime/runtime.source.ts and is added to the
+ * sandbox as a hidden file. If it were ever empty the sandbox would behave as
+ * if no runtime existed.
  */
 
 /** Path of the runtime file inside the sandbox file map. */
 export const RUNTIME_FILE_PATH = "/mb-runtime.js";
 
-/** Phase 2 replaces this with the runtime source. */
-export const RUNTIME_SOURCE = "";
-
-/** True once Phase 2 has provided a runtime. */
+/** True when a runtime source is available. */
 export function hasRuntime(): boolean {
   return RUNTIME_SOURCE.trim().length > 0;
 }
