@@ -126,3 +126,18 @@ export interface MissionStep {
   /** Hint of something to say, shown on demand. */
   hint: string;
 }
+
+/** Props every app component receives from the shell. */
+export interface AppProps {
+  api: DeskApi;
+}
+
+/** Implemented by the shell; used by the command bar and the engine. */
+export interface DeskRuntime {
+  getSnapshot(): DesktopSnapshot;
+  /** Applies one action, with its visual feedback (cursor, highlight). */
+  execute(action: Action): Promise<ActionResult>;
+}
+
+/** Turns a command plus the current desktop into actions. */
+export type Planner = (req: ActRequest) => Promise<ActResponse>;
