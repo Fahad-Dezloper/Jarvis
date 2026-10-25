@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Lightbulb, PartyPopper, X } from "lucide-react";
 import useWindowsStore from "@store/window";
-import useDeskhandStore from "./store";
+import useOrryStore from "./store";
 import { BONUS, MISSIONS, countDone, isComplete, snapshotStore } from "./missionsLogic";
 
 const DISMISS_KEY = "dk:missions-dismissed";
@@ -42,8 +42,8 @@ function Item({ item, done, index }) {
 }
 
 export default function Missions() {
-  const progress = useDeskhandStore((s) => s.missions);
-  const tick = useDeskhandStore((s) => s.tickMissions);
+  const progress = useOrryStore((s) => s.missions);
+  const tick = useOrryStore((s) => s.tickMissions);
   const [open, setOpen] = useState(true);
   const [minimized, setMinimized] = useState(false);
   const [bonusOpen, setBonusOpen] = useState(false);

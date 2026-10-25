@@ -7,9 +7,9 @@ import Toc from "@module/docs/Toc";
 import * as S from "@module/docs/snippets";
 
 export const metadata = {
-  title: "Deskhand Docs",
+  title: "Orry Docs",
   description:
-    "Vision, architecture, the v1 JSON protocol, the Claude Code bridge and the security model behind Deskhand, a voice-first desktop launcher.",
+    "Vision, architecture, the v1 JSON protocol, the Claude Code bridge and the security model behind Orry, a voice-first desktop launcher.",
 };
 
 const TOC = [
@@ -64,7 +64,7 @@ export default function DocsPage() {
   return (
     <div className="dh-docs">
       <header className="dh-top">
-        <span className="dh-brand">Deskhand / Docs</span>
+        <span className="dh-brand">Orry / Docs</span>
         <Link href="/" className="dh-back">
           <span aria-hidden="true">&larr;</span> Back to desktop
         </Link>
@@ -76,9 +76,9 @@ export default function DocsPage() {
         <div className="dh-main">
           <div className="dh-hero">
             <span className="dh-eyebrow">Protocol v1 / Infrastructure notes</span>
-            <h1>Speak loosely. Deskhand does the rest.</h1>
+            <h1>Speak loosely. Orry does the rest.</h1>
             <p>
-              Deskhand is a voice-first desktop launcher: you hold your dictation key, say what you
+              Orry is a voice-first desktop launcher: you hold your dictation key, say what you
               want in your own words, and a model turns it into a small, checked plan that runs on
               your computer. This page explains the idea, the architecture, the wire protocol and
               the safety model, for judges and future contributors.
@@ -152,7 +152,7 @@ export default function DocsPage() {
               ]}
             />
             <Callout kind="note" title="Not an official integration">
-              Deskhand does not claim any official integration with Wispr Flow or any other
+              Orry does not claim any official integration with Wispr Flow or any other
               dictation product. It only needs a focused text field, which every dictation tool can
               type into.
             </Callout>
@@ -462,7 +462,7 @@ export default function DocsPage() {
             <Callout kind="unverified">
               No Wispr Flow developer API, SDK or integration is documented on docs.wisprflow.ai or
               in the pages read for this research. How Flow inserts text (paste versus simulated
-              keys) is also not documented in the pages read. Deskhand therefore assumes nothing
+              keys) is also not documented in the pages read. Orry therefore assumes nothing
               beyond a focused text field.
             </Callout>
           </section>
@@ -472,7 +472,7 @@ export default function DocsPage() {
             <p>
               For tasks that touch files or a codebase, the launcher hands a scoped job to Claude
               Code in non-interactive mode and streams the progress back to the overlay. The model
-              that plans (Deskhand&apos;s planner) and the agent that works (Claude Code) are
+              that plans (Orry&apos;s planner) and the agent that works (Claude Code) are
               separate, and the second runs with the smallest tool set that does the job.
             </p>
             <CodeBlock
@@ -576,7 +576,7 @@ export default function DocsPage() {
             <Callout kind="verified">
               Anthropic&apos;s docs say third-party developers may not offer claude.ai login or its
               rate limits in their products unless previously approved; use API key authentication.
-              A shipped Deskhand therefore asks users for their own API key (or uses a cloud
+              A shipped Orry therefore asks users for their own API key (or uses a cloud
               provider login the docs list), stored in the keychain.
             </Callout>
           </section>

@@ -1,4 +1,4 @@
-// Deskhand engine entry. runCommand(text) builds a snapshot, asks /api/act for a
+// Orry engine entry. runCommand(text) builds a snapshot, asks /api/act for a
 // plan (model path), falls back to the offline rules when that is unavailable,
 // then executes the validated actions one at a time.
 import { executeAction, targetRect } from "./executor.js";

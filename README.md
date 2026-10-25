@@ -1,50 +1,85 @@
-# Motion Brief
+# Orry
 
-Narrate an animation, pin your words to the exact frame, and get a precise prompt for your AI coding agent.
+**Say what you want. Your desktop does it.**
+
+Orry is a voice-first desktop. You hold your dictation key ([Wispr Flow](https://wisprflow.ai)), speak loosely, and a model turns what you meant into actions that happen on screen: open apps, run commands, play music, save a link, tidy your windows.
 
 Built for the WeMakeDevs x Wispr Flow "No Hands" challenge (Builders track). Non-commercial.
 
-## The problem
+## Two parts
 
-Explaining motion to an AI agent in text is hard: what happens before this frame, at this frame, after it. Speaking is faster and richer than typing, but a raw ramble has no structure and no timestamps.
+| | What it is | Status |
+|---|---|---|
+| **Orry web demo** (`deskhand/`) | A macOS-style desktop in the browser that you control by voice. Open the link, no sign-in, no install. | Working. This is the submission. |
+| **Orry launcher** (design only) | A small always-on command bar for your real computer. Same idea, real apps. | Planned. The protocol and infrastructure are documented at `/docs`. |
+
+## Try it
+
+1. Open the demo and press Enter on the lock screen.
+2. Click into the bar at the bottom (it stays focused), hold your Wispr Flow key and speak. Typing works too.
+3. Follow the **Try it with your voice** card:
+   - "Open Claude Code"
+   - "Run npm run dev"
+   - "Close it"
+   - "Open Spotify"
+   - "Play the HiNV Music playlist"
+
+Bonus: "Open the browser and save this artifact link to my notes", "Resize the windows so they all look good", "Switch to dark mode".
+
+Orry understands messy, dictated speech ("uh open claude code and then run npm run dev"), and follow-ups like "close it" use the previous turn.
 
 ## How it works
 
-1. **Import** a React component, HTML, SVG or CSS (paste, drop files, or a GitHub file URL), or start from a sample. It runs live in the browser.
-2. **Scrub** the animation: play, pause, step frame by frame, slow down, pick an element.
-3. **Narrate** into one big box (made for dictation). Pins are logged against the playhead time and the picked element.
-4. **Build the brief.** The notes, code and measured animation values become a structured prompt. A model writes it when a key is configured; otherwise a rule-based fallback does.
-5. **Send** it: copy, open in Cursor, open in Claude Code, or download `MOTION_BRIEF.md`.
+```
+Wispr Flow  ->  command bar  ->  snapshot of the desktop  ->  planner  ->  executor  ->  visible result
+(dictation)     (focused text     (windows, app state,         (model, or    (store,       (action log,
+                 field)            clickable elements)          offline       app           virtual cursor,
+                                                                rules)        handlers,     missions)
+                                                                              DOM)
+```
 
-For animations that cannot be scrubbed (JavaScript-driven, canvas), annotate a screen recording frame by frame instead.
+- **Wispr Flow only types text into whichever field has focus.** Orry has no speech code of its own. The app adds the structure: it reads the desktop, plans a short sequence of actions, and shows each step.
+- **Planner:** Claude through the Vercel AI SDK with structured output, validated against an allowlist of actions. With no API key (or if the model fails) an offline rules parser handles common commands, so the demo always works.
+- **Executor:** window actions go through the desktop store; apps expose handlers (terminal, notes, browser, music, settings, finder); any other app can still be clicked and typed into through a generic scan of on-screen controls.
+- **Safety:** model output is validated against a fixed set of actions. Page and app text is treated as data, never as instructions.
 
-## Scrubbing support
+### What is real and what is simulated in the web demo
 
-| Technology | Seek / step |
+| Real | Simulated |
 |---|---|
-| CSS animations and transitions, Web Animations API | Yes |
-| GSAP (top-level tweens) | Yes |
-| SVG SMIL | Yes |
-| Other JS-driven animation | Use the video recorder instead |
+| Voice text -> model -> action loop and its action schema | The Claude Code terminal (a scripted look-alike) |
+| Window management, tiling, clicking and typing | The browser pages (mock Claude artifact, news list, repo page) |
+| Music playback (Jamendo tracks, with generated audio as the offline fallback) | Notes, Finder and Settings data |
+
+## Documentation
+
+`/docs` in the app (also in [`deskhand/docs/`](deskhand/docs)) covers the V1 vision, architecture, the message protocol, how a native launcher would hand tasks to Claude Code headless, context providers (current browser tab, Notes, Notion), the security model and the roadmap. Facts were checked against official docs and anything unverified is labelled.
 
 ## Run it
 
 ```bash
+cd deskhand
 npm install
 cp .env.example .env.local   # optional: add ANTHROPIC_API_KEY
 npm run dev
 ```
 
-Without a key the brief is built by the offline heuristic. Checks: `npm run check:brief`, `check:send`, `check:narration`, `check:recorder`.
+Without a key, Orry uses the offline rules planner. The key is read on the server only.
 
-Phases and status: [docs/PHASES.md](docs/PHASES.md).
+Checks: `npm run check:engine`, `check:apps`, `check:ui`.
+
+### Deploy on Vercel
+
+Import the repository, set **Root Directory** to `deskhand`, and add `ANTHROPIC_API_KEY` (and optionally `DESKHAND_MODEL`) as environment variables. Keep the key server-side and put a spending limit on it.
+
+## Also in this repo: Motion Brief
+
+An earlier experiment, still working at `/motion-brief` in the root app (tagged `motion-brief-v1`): import a component with an animation, scrub it, pin dictated notes to exact frames, and get a precise prompt for an AI coding agent. See [docs/PHASES.md](docs/PHASES.md).
 
 ## Credits and licenses
 
-- **Deskhand base (`deskhand/`):** forked from [kuldeeprajput-dev/macos-portfolio](https://github.com/kuldeeprajput-dev/macos-portfolio), MIT, (c) 2026 Kuldeep Rajput. The original license is kept at `deskhand/LICENSE`. Personal content is being replaced and a voice action engine added.
-- In-browser preview: [Sandpack](https://github.com/codesandbox/sandpack) by CodeSandbox, Apache-2.0.
-- [Motion](https://github.com/motiondivision/motion), MIT, (c) 2024 Motion B.V. (used inside sample animations).
-- [GSAP](https://gsap.com), used under the [GSAP Standard License](https://gsap.com/standard-license/) as a library inside sample animations. Not redistributed or modified.
-- Scrubber and pause/seek design informed by the Chrome DevTools Animations panel (BSD-3-Clause, The Chromium Authors). Technique only, no code copied.
-- Annotation-to-agent-prompt idea inspired by [Agentation](https://github.com/benjitaylor/agentation) (PolyForm Shield 1.0.0). No code reused.
-- Built with Next.js, React, Tailwind CSS, the Vercel AI SDK, zod, lucide-react.
+- **Desktop base:** forked from [kuldeeprajput-dev/macos-portfolio](https://github.com/kuldeeprajput-dev/macos-portfolio), MIT, (c) 2026 Kuldeep Rajput. The original license is kept at `deskhand/LICENSE`. Personal content was removed and a voice action engine, command bar, missions and docs were added.
+- Music from [Jamendo](https://www.jamendo.com) through its public API.
+- Window animation with [GSAP](https://gsap.com), used under the [GSAP Standard License](https://gsap.com/standard-license/).
+- Motion Brief only: [Sandpack](https://github.com/codesandbox/sandpack) (CodeSandbox, Apache-2.0); [Motion](https://github.com/motiondivision/motion) (MIT); scrubber design informed by the Chrome DevTools Animations panel (BSD-3-Clause, technique only); annotation idea inspired by [Agentation](https://github.com/benjitaylor/agentation) (PolyForm Shield 1.0.0, no code reused).
+- Built with Next.js, React, Tailwind CSS, Zustand, the Vercel AI SDK, zod and lucide-react.

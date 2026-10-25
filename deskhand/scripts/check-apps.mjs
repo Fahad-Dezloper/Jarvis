@@ -58,10 +58,10 @@ const run = (cmd, session = createSession()) => {
 check("welcome banner names the simulation", () => {
   const text = eventsToText(welcomeEvents());
   assert.ok(text.includes(BANNER_TITLE));
-  assert.ok(text.includes("Claude Code (simulated for Deskhand v1)"));
+  assert.ok(text.includes("Claude Code (simulated for Orry v1)"));
 });
 check("prompt shows user and relative cwd", () => {
-  assert.equal(stripAnsi(promptText(createSession())), "guest@deskhand ~/orbit-todo % ");
+  assert.equal(stripAnsi(promptText(createSession())), "guest@orry ~/orbit-todo % ");
 });
 check("pwd / whoami / date / echo", () => {
   assert.equal(run("pwd").text, "/home/guest/orbit-todo");

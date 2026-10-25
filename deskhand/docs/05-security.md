@@ -1,4 +1,4 @@
-# Deskhand: Security model
+# Orry: Security model
 
 Assume the model can be wrong and any text it reads can be hostile.
 

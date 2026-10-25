@@ -1,4 +1,4 @@
-# Deskhand: Claude Code bridge
+# Orry: Claude Code bridge
 
 For tasks that touch files or a codebase, the launcher runs Claude Code non-interactively with a scoped tool set and streams progress back.
 

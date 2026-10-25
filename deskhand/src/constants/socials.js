@@ -1,2 +1,2 @@
-// Personal social links removed for Deskhand. Kept as an empty export for importers.
+// Personal social links removed for Orry. Kept as an empty export for importers.
 export const socials = [];

@@ -1,4 +1,4 @@
-# Deskhand: References
+# Orry: References
 
 Read during research (October 2026). Anything not listed is unverified.
 

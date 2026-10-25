@@ -1,6 +1,6 @@
-# Deskhand: Vision
+# Orry: Vision
 
-Deskhand is a voice-first desktop launcher. You hold your dictation key, speak loosely, and a model plans and performs actions on your computer.
+Orry is a voice-first desktop launcher. You hold your dictation key, speak loosely, and a model plans and performs actions on your computer.
 
 ## Why
 
@@ -23,4 +23,4 @@ The website is **V1, a browser demo on a simulated desktop**. The real launcher 
 | Apps and windows | Simulated React components, not your real apps. |
 | macOS control | Not built: AppleScript, System Events, Claude Code and Notion executors are design only. |
 
-Deskhand does not claim any official integration with Wispr Flow or another dictation product. It only needs a focused text field.
+Orry does not claim any official integration with Wispr Flow or another dictation product. It only needs a focused text field.

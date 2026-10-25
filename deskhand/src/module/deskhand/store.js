@@ -5,7 +5,7 @@ import { initialProgress, tickMissions } from "./missionsLogic";
 
 // Engine events fan out to non-React listeners (virtual cursor, missions).
 const listeners = new Set();
-export function onDeskhandEvent(cb) {
+export function onOrryEvent(cb) {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
@@ -29,7 +29,7 @@ async function pickEngine() {
   return runCommand;
 }
 
-const useDeskhandStore = create((set, get) => ({
+const useOrryStore = create((set, get) => ({
   status: "idle", // idle | running
   command: "",
   plan: null,
@@ -145,4 +145,4 @@ const useDeskhandStore = create((set, get) => ({
   },
 }));
 
-export default useDeskhandStore;
+export default useOrryStore;

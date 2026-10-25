@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronUp, Circle, Loader2, X } from "lucide-react";
-import useDeskhandStore from "./store";
+import useOrryStore from "./store";
 import { humanize } from "./humanize";
 
 function StepIcon({ status }) {
@@ -10,11 +10,11 @@ function StepIcon({ status }) {
 }
 
 export default function ActionLog() {
-  const plan = useDeskhandStore((s) => s.plan);
-  const steps = useDeskhandStore((s) => s.steps);
-  const logOpen = useDeskhandStore((s) => s.logOpen);
-  const setLogOpen = useDeskhandStore((s) => s.setLogOpen);
-  const collapsed = useDeskhandStore((s) => s.collapsed);
+  const plan = useOrryStore((s) => s.plan);
+  const steps = useOrryStore((s) => s.steps);
+  const logOpen = useOrryStore((s) => s.logOpen);
+  const setLogOpen = useOrryStore((s) => s.setLogOpen);
+  const collapsed = useOrryStore((s) => s.collapsed);
 
   const actions = plan?.actions ?? [];
   const visible = actions.filter((a) => a.type !== "say");

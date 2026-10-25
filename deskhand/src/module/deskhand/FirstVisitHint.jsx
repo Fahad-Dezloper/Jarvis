@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import useDeskhandStore from "./store";
+import useOrryStore from "./store";
 
 const KEY = "dk:hint-seen";
 
@@ -20,8 +20,8 @@ function markSeen() {
 }
 
 export default function FirstVisitHint() {
-  const dismissed = useDeskhandStore((s) => s.hintDismissed);
-  const dismiss = useDeskhandStore((s) => s.dismissHint);
+  const dismissed = useOrryStore((s) => s.hintDismissed);
+  const dismiss = useOrryStore((s) => s.dismissHint);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

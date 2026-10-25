@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArrowUp, Loader2, Sparkles, Square } from "lucide-react";
 import useWindowsStore from "@store/window";
-import useDeskhandStore from "./store";
+import useOrryStore from "./store";
 
 const IGNORE_REFOCUS =
   "input, textarea, select, button, a, [contenteditable='true'], nav, #dock, .dock-container, .macos-notch-container, .dk-ui";
@@ -18,17 +18,17 @@ export default function CommandBar() {
   const [focused, setFocused] = useState(false);
   const recallRef = useRef(-1);
 
-  const status = useDeskhandStore((s) => s.status);
-  const reply = useDeskhandStore((s) => s.reply);
-  const source = useDeskhandStore((s) => s.source);
-  const ok = useDeskhandStore((s) => s.ok);
-  const error = useDeskhandStore((s) => s.error);
-  const cancelled = useDeskhandStore((s) => s.cancelled);
-  const collapsed = useDeskhandStore((s) => s.collapsed);
-  const history = useDeskhandStore((s) => s.history);
-  const submit = useDeskhandStore((s) => s.submit);
-  const cancel = useDeskhandStore((s) => s.cancel);
-  const setCollapsed = useDeskhandStore((s) => s.setCollapsed);
+  const status = useOrryStore((s) => s.status);
+  const reply = useOrryStore((s) => s.reply);
+  const source = useOrryStore((s) => s.source);
+  const ok = useOrryStore((s) => s.ok);
+  const error = useOrryStore((s) => s.error);
+  const cancelled = useOrryStore((s) => s.cancelled);
+  const collapsed = useOrryStore((s) => s.collapsed);
+  const history = useOrryStore((s) => s.history);
+  const submit = useOrryStore((s) => s.submit);
+  const cancel = useOrryStore((s) => s.cancel);
+  const setCollapsed = useOrryStore((s) => s.setCollapsed);
 
   const running = status === "running";
 
@@ -133,7 +133,7 @@ export default function CommandBar() {
     <div
       className={`dk-ui dk-bar ${focused ? "is-focused" : ""} ${running ? "is-running" : ""}`}
       role="search"
-      aria-label="Deskhand command bar"
+      aria-label="Orry command bar"
     >
       <div className="dk-bar-glow" aria-hidden="true" />
       <div className="dk-bar-row">

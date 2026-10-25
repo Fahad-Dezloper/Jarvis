@@ -5,7 +5,7 @@ import Missions from "./Missions";
 import VirtualCursor from "./VirtualCursor";
 
 // Mount point for the voice front door. Rendered once by the desktop.
-export default function Deskhand() {
+export default function Orry() {
   return (
     <>
       <div className="dk-stack">

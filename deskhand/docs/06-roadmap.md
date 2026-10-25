@@ -1,4 +1,4 @@
-# Deskhand: Roadmap
+# Orry: Roadmap
 
 | Stage | Scope | Status |
 | --- | --- | --- |
@@ -19,4 +19,4 @@ No dates: V1.1 and V2 are plans, not promises. Anything marked design or unverif
 
 ## Dictation (Wispr Flow) facts
 
-Verified from https://docs.wisprflow.ai : "Flow types for you in any app"; Mac and Windows downloads; Mac defaults Fn (push to talk), Fn+Space (hands-free), Fn+Ctrl (Command Mode). No developer API/SDK was found in the pages read; how text is inserted is not documented there. Deskhand assumes only a focused text field and claims no official integration.
+Verified from https://docs.wisprflow.ai : "Flow types for you in any app"; Mac and Windows downloads; Mac defaults Fn (push to talk), Fn+Space (hands-free), Fn+Ctrl (Command Mode). No developer API/SDK was found in the pages read; how text is inserted is not documented there. Orry assumes only a focused text field and claims no official integration.

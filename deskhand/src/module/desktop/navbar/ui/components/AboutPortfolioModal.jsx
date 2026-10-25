@@ -34,7 +34,7 @@ const AboutPortfolioModal = ({ show, onClose }) => {
             D
           </div>
           <h1 className="text-[15px] font-bold text-gray-900 mt-3 select-none leading-tight">
-            Deskhand
+            Orry
           </h1>
           <p className="text-[10px] text-gray-500 font-semibold select-none mt-0.5">
             Voice-controlled desktop demo

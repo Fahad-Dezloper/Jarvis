@@ -25,7 +25,7 @@ export default function Diagram() {
       <svg
         viewBox="0 0 960 470"
         role="img"
-        aria-label="Deskhand architecture: dictation feeds a launcher input, context providers and a planner produce a plan, a policy and consent gate approves it, executors run it, and results go to feedback and an audit log."
+        aria-label="Orry architecture: dictation feeds a launcher input, context providers and a planner produce a plan, a policy and consent gate approves it, executors run it, and results go to feedback and an audit log."
       >
         <defs>
           <marker

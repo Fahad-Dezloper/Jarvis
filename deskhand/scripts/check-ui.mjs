@@ -1,4 +1,4 @@
-// Pure-logic checks for the Deskhand UI. Run: npm run check:ui
+// Pure-logic checks for the Orry UI. Run: npm run check:ui
 import assert from "node:assert/strict";
 import { humanize, windowLabel } from "../src/module/deskhand/humanize.js";
 import { trimHistory, MAX_TURNS } from "../src/module/deskhand/history.js";

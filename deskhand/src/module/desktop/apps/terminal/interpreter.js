@@ -10,7 +10,7 @@
 
 export const HOME = "/home/guest";
 export const PROJECT = `${HOME}/orbit-todo`;
-export const BANNER_TITLE = "Claude Code (simulated for Deskhand v1)";
+export const BANNER_TITLE = "Claude Code (simulated for Orry v1)";
 
 const ESC = "\x1b[";
 const paint = (code, s) => `${ESC}${code}m${s}${ESC}0m`;
@@ -127,7 +127,7 @@ export function displayPath(cwd) {
 }
 
 export function promptText(session) {
-  return `${c.green("guest@deskhand")} ${c.blue(displayPath(session.cwd))} % `;
+  return `${c.green("guest@orry")} ${c.blue(displayPath(session.cwd))} % `;
 }
 
 // ------------------------------------------------------------------- helpers
@@ -234,7 +234,7 @@ function gitOutput(args) {
     }
     return GIT_LOG.slice(0, 3).flatMap(([h, m]) => [
       ev(c.yellow(`commit ${h}e5f2b9c04d7a1138a6c2f0b7d1a9e3c4`)),
-      ev("Author: Guest <guest@deskhand.local>"),
+      ev("Author: Guest <guest@orry.local>"),
       ev("Date:   Mon Oct 26 08:41:07 2026 +0000"),
       ev(""),
       ev(`    ${m}`),

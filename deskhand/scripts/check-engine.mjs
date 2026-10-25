@@ -1,4 +1,4 @@
-// Known-answer checks for the Deskhand engine (pure logic only; no browser, no network).
+// Known-answer checks for the Orry engine (pure logic only; no browser, no network).
 // Run: npm run check:engine
 import assert from "node:assert/strict";
 import { planWithRules, mentionedApps, cleanText, splitCommand } from "../src/deskhand/engine/rules.js";

@@ -17,7 +17,7 @@ const SettingsAppleIDSection = ({ githubData }) => {
       </div>
       <div className="w-full bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm p-4">
         <p className="text-[13px] text-gray-600 leading-relaxed">
-          You are using Deskhand as a guest. Nothing here is synced to a real account.
+          You are using Orry as a guest. Nothing here is synced to a real account.
         </p>
       </div>
     </div>

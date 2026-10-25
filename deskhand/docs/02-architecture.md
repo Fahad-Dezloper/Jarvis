@@ -1,4 +1,4 @@
-# Deskhand: Architecture
+# Orry: Architecture
 
 ```
 Dictation (user's app, e.g. Wispr Flow)
