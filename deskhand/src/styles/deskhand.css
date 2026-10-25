@@ -1,0 +1,660 @@
+/* Deskhand: command bar, action log, virtual cursor, missions. */
+
+.dk-stack {
+  --dk-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  position: fixed;
+  left: 50%;
+  bottom: 108px;
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 32px));
+  z-index: 5000;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+  gap: 10px;
+  pointer-events: none;
+  font-family:
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+}
+.dk-stack > * {
+  pointer-events: auto;
+}
+
+/* ---- command bar ---- */
+.dk-bar {
+  position: relative;
+  border-radius: 24px;
+  background: rgba(24, 24, 28, 0.8);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #fff;
+  transition:
+    border-color 0.35s var(--dk-ease),
+    box-shadow 0.35s var(--dk-ease);
+}
+.dk-bar.is-focused {
+  border-color: rgba(147, 197, 253, 0.5);
+}
+.dk-bar-glow {
+  position: absolute;
+  inset: -3px;
+  border-radius: 27px;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 2px rgba(96, 165, 250, 0.45),
+    0 0 30px rgba(96, 165, 250, 0.4),
+    0 0 60px rgba(168, 85, 247, 0.22);
+  transition: opacity 0.4s ease;
+}
+.dk-bar.is-focused .dk-bar-glow {
+  opacity: 1;
+  animation: dk-listen 2.4s ease-in-out infinite;
+}
+@keyframes dk-listen {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.012);
+  }
+}
+.dk-bar-row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 14px 18px;
+}
+.dk-bar-icon {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+.dk-bar-input {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 18px;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  caret-color: #93c5fd;
+  max-height: 168px;
+  overflow-y: auto;
+  user-select: text;
+  scrollbar-width: none;
+}
+.dk-bar-input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+.dk-kbd,
+.dk-hint kbd {
+  align-self: center;
+  font:
+    500 12px/1 "SF Pro Text",
+    system-ui,
+    sans-serif;
+  padding: 5px 8px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.dk-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition:
+    transform 0.2s var(--dk-ease),
+    background 0.2s ease;
+}
+.dk-bar-btn:active {
+  transform: scale(0.94);
+}
+.dk-bar-send {
+  width: 30px;
+  background: #3b82f6;
+}
+.dk-bar-send:hover {
+  background: #60a5fa;
+}
+.dk-bar-cancel {
+  padding: 0 12px;
+  background: rgba(239, 68, 68, 0.85);
+}
+.dk-bar-cancel:hover {
+  background: rgba(239, 68, 68, 1);
+}
+.dk-progress {
+  height: 2px;
+  margin: 0 18px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+.dk-progress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #60a5fa, transparent);
+  animation: dk-sweep 1.2s ease-in-out infinite;
+}
+@keyframes dk-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+.dk-feedback {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 18px 14px 58px;
+  animation: dk-rise 0.35s var(--dk-ease);
+}
+.dk-reply {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.82);
+  user-select: text;
+}
+.dk-tone-bad .dk-reply {
+  color: #fca5a5;
+}
+.dk-badge {
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.dk-badge-ai {
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.22);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+}
+.dk-badge-rules {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+@keyframes dk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.dk-spin {
+  animation: dk-rotate 0.9s linear infinite;
+}
+@keyframes dk-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- action log ---- */
+.dk-log {
+  border-radius: 18px;
+  background: rgba(24, 24, 28, 0.8);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  overflow: hidden;
+  animation: dk-rise 0.35s var(--dk-ease);
+}
+.dk-log-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.dk-log-head svg {
+  margin-left: auto;
+}
+.dk-log-count {
+  font-weight: 600;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+.dk-log-list {
+  margin: 0;
+  padding: 2px 14px 12px;
+  list-style: none;
+  max-height: 210px;
+  overflow-y: auto;
+}
+.dk-log-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.3s ease;
+}
+.dk-log-item.is-start,
+.dk-log-item.is-ok,
+.dk-log-item.is-fail {
+  color: rgba(255, 255, 255, 0.92);
+}
+.dk-log-icon {
+  width: 16px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dk-step-ok {
+  color: #4ade80;
+}
+.dk-step-fail {
+  color: #f87171;
+}
+.dk-step-run {
+  color: #60a5fa;
+}
+.dk-step-wait {
+  color: rgba(255, 255, 255, 0.3);
+}
+.dk-log-msg {
+  display: block;
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+/* ---- first visit hint ---- */
+.dk-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  align-self: center;
+  max-width: 100%;
+  padding: 9px 12px 9px 16px;
+  border-radius: 999px;
+  background: rgba(24, 24, 28, 0.86);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  animation: dk-rise 0.5s var(--dk-ease);
+}
+.dk-hint p {
+  margin: 0;
+}
+.dk-hint kbd {
+  margin: 0 2px;
+  padding: 3px 6px;
+}
+.dk-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.dk-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* ---- virtual cursor ---- */
+.dk-cursor-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+}
+.dk-cursor,
+.dk-ripple {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.dk-cursor {
+  margin: -3px 0 0 -3px;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+}
+.dk-cursor svg {
+  display: block;
+  transform-origin: 3px 2px;
+}
+.dk-ripple {
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 50%;
+  border: 2px solid rgba(96, 165, 250, 0.9);
+  background: rgba(96, 165, 250, 0.22);
+}
+
+/* ---- missions ---- */
+.dk-missions {
+  position: fixed;
+  top: 48px;
+  left: 124px;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  z-index: 4500;
+  padding: 14px 16px 14px;
+  border-radius: 20px;
+  background: rgba(24, 24, 28, 0.86);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.36);
+  color: #fff;
+  font-family:
+    "SF Pro Display",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  animation: dk-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dk-missions.is-complete {
+  border-color: rgba(74, 222, 128, 0.5);
+  box-shadow:
+    0 18px 46px rgba(0, 0, 0, 0.36),
+    0 0 40px rgba(74, 222, 128, 0.25);
+}
+.dk-missions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dk-missions-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #93c5fd;
+}
+.dk-missions.is-complete .dk-missions-title {
+  color: #86efac;
+}
+.dk-missions-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+.dk-missions-actions {
+  display: flex;
+  gap: 2px;
+}
+.dk-missions-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.dk-missions-track {
+  flex: 1;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.dk-missions-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #60a5fa, #a78bfa);
+  transition: width 0.6s var(--dk-ease, cubic-bezier(0.16, 1, 0.3, 1));
+}
+.dk-missions.is-complete .dk-missions-fill {
+  background: linear-gradient(90deg, #4ade80, #86efac);
+}
+.dk-mission-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.dk-mission {
+  display: flex;
+  gap: 10px;
+  padding: 7px 0;
+}
+.dk-mission-mark {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  margin-top: 1px;
+  transition:
+    background 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dk-mission.is-done .dk-mission-mark {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+  transform: scale(1.08);
+}
+.dk-mission-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.dk-mission-label {
+  font-size: 14px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.92);
+}
+.dk-mission.is-done .dk-mission-label {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+.dk-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+.dk-link:hover {
+  text-decoration: underline;
+}
+.dk-mission-hint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.dk-bonus-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0 2px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.dk-bonus-toggle svg {
+  margin-left: auto;
+}
+.dk-finish {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+  animation: dk-pop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dk-finish p {
+  margin: 0;
+}
+.dk-finish-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 2px !important;
+  color: #86efac;
+}
+.dk-finish-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-weight: 600;
+  color: #86efac;
+}
+.dk-finish-link:hover {
+  text-decoration: underline;
+}
+@keyframes dk-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.dk-missions-pill {
+  position: fixed;
+  top: 46px;
+  left: 124px;
+  z-index: 4500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(24, 24, 28, 0.84);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.dk-missions-pill:hover {
+  background: rgba(40, 40, 46, 0.78);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-bar.is-focused .dk-bar-glow,
+  .dk-progress::after,
+  .dk-spin,
+  .dk-feedback,
+  .dk-log,
+  .dk-hint,
+  .dk-missions,
+  .dk-finish {
+    animation: none;
+  }
+  .dk-mission-mark,
+  .dk-missions-fill {
+    transition: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .dk-stack,
+  .dk-missions,
+  .dk-missions-pill,
+  .dk-cursor-layer {
+    display: none;
+  }
+}
