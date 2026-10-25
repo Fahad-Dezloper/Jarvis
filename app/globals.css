@@ -56,3 +56,9 @@ body {
   border-radius: 0;
   border: 0;
 }
+
+/* The bundler's loading veil can stay up after the preview has rendered;
+   the studio shows its own connection state, so never let it cover the stage. */
+.mb-sandpack .sp-loading {
+  display: none !important;
+}
