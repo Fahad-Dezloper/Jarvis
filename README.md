@@ -41,6 +41,7 @@ Phases and status: [docs/PHASES.md](docs/PHASES.md).
 
 ## Credits and licenses
 
+- **Deskhand base (`deskhand/`):** forked from [kuldeeprajput-dev/macos-portfolio](https://github.com/kuldeeprajput-dev/macos-portfolio), MIT, (c) 2026 Kuldeep Rajput. The original license is kept at `deskhand/LICENSE`. Personal content is being replaced and a voice action engine added.
 - In-browser preview: [Sandpack](https://github.com/codesandbox/sandpack) by CodeSandbox, Apache-2.0.
 - [Motion](https://github.com/motiondivision/motion), MIT, (c) 2024 Motion B.V. (used inside sample animations).
 - [GSAP](https://gsap.com), used under the [GSAP Standard License](https://gsap.com/standard-license/) as a library inside sample animations. Not redistributed or modified.
