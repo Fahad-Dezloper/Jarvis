@@ -1,30 +1,9 @@
-import { PROJECT_1_URL, PROJECT_2_URL, PROJECT_3_URL } from "@constants";
+import { ARTIFACT_URL, GITHUB_URL, HN_URL } from "./pages";
 
 export const DEFAULT_BOOKMARKS = [
-  {
-    id: 1,
-    title: "Portfolio",
-    url: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
-    img: "/brands/portfolio.webp",
-  },
-  {
-    id: 2,
-    title: "NewTube",
-    url: PROJECT_1_URL,
-    img: "/brands/youtube.webp",
-  },
-  {
-    id: 3,
-    title: "Resuvee",
-    url: PROJECT_3_URL,
-    img: "/brands/resuvee.webp",
-  },
-  {
-    id: 4,
-    title: "Coursenva",
-    url: PROJECT_2_URL,
-    img: "/brands/coursenva.webp",
-  },
+  { id: 101, title: "Poker odds (Claude artifact)", url: ARTIFACT_URL, img: "" },
+  { id: 102, title: "Hacker News", url: HN_URL, img: "" },
+  { id: 103, title: "orbit-todo on GitHub", url: GITHUB_URL, img: "" },
   {
     id: 5,
     title: "Wikipedia",

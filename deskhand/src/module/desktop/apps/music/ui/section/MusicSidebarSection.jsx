@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { Disc, Compass, Music as MusicIcon, Library } from "lucide-react";
+import { Disc, Compass, Music as MusicIcon, Library, ListMusic } from "lucide-react";
+import { PLAYLISTS } from "../../data/playlists";
 
 const SECTIONS = [
   {
@@ -8,6 +9,10 @@ const SECTIONS = [
       { name: "Listen Now", icon: Disc },
       { name: "Browse", icon: Compass },
     ],
+  },
+  {
+    label: "Playlists",
+    items: PLAYLISTS.map((p) => ({ name: p.name, icon: ListMusic })),
   },
   {
     label: "Categories",

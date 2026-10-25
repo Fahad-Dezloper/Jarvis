@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { FileText } from "lucide-react";
 
-const NoteEditor = ({ activeNote, onUpdateNote, onCreateNote }) => {
+const NoteEditor = ({ activeNote, flash, onUpdateNote, onCreateNote }) => {
   const editorRef = useRef(null);
 
   // Sync editor content only when activeNote.id changes to prevent cursor jumping
@@ -13,6 +13,25 @@ const NoteEditor = ({ activeNote, onUpdateNote, onCreateNote }) => {
     }
   }, [activeNote]);
 
+  // Briefly highlight the last line after a voice-driven append.
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el || !flash?.n) return;
+    const last = el.lastElementChild;
+    if (!last) return;
+    last.classList.add("dk-note-flash");
+    try {
+      last.scrollIntoView({ block: "nearest" });
+    } catch {
+      /* ignore */
+    }
+    const timer = setTimeout(() => {
+      last.classList.remove("dk-note-flash");
+      if (!last.getAttribute("class")) last.removeAttribute("class");
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [flash]);
+
   const handleInput = () => {
     if (editorRef.current) {
       onUpdateNote("body", editorRef.current.innerHTML);
@@ -21,6 +40,13 @@ const NoteEditor = ({ activeNote, onUpdateNote, onCreateNote }) => {
 
   return (
     <div className="flex-1 flex flex-col bg-[#fbfaf8] p-5 md:p-6 overflow-y-auto">
+      <style>{`
+        @keyframes dkNoteFlash {
+          0% { background: rgba(228, 165, 46, 0.55); }
+          100% { background: rgba(228, 165, 46, 0); }
+        }
+        .dk-note-flash { animation: dkNoteFlash 1.6s ease-out; border-radius: 4px; }
+      `}</style>
       {activeNote ? (
         <div
           ref={editorRef}

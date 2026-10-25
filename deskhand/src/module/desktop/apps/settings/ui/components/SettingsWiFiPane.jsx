@@ -14,7 +14,7 @@ const SettingsWiFiPane = () => {
   const [networks, setNetworks] = useState([
     { name: "Home Network", locked: true, strength: "strong" },
     { name: "Coffee Shop 5G", locked: true, strength: "medium" },
-    { name: "iPhone (Kuldeep)", locked: true, strength: "strong" },
+    { name: "iPhone (Guest)", locked: true, strength: "strong" },
     { name: "Airport Free WiFi", locked: false, strength: "weak" },
   ]);
 
@@ -31,9 +31,9 @@ const SettingsWiFiPane = () => {
       setNetworks([
         { name: "Home Network", locked: true, strength: "strong" },
         { name: "Coffee Shop 5G", locked: true, strength: "medium" },
-        { name: "iPhone (Kuldeep)", locked: true, strength: "strong" },
+        { name: "iPhone (Guest)", locked: true, strength: "strong" },
         { name: "Airport Free WiFi", locked: false, strength: "weak" },
-        { name: "Kuldeep's MacBook Hotspot", locked: true, strength: "strong" },
+        { name: "Guest's Hotspot", locked: true, strength: "strong" },
       ]);
     }, 1200);
   };

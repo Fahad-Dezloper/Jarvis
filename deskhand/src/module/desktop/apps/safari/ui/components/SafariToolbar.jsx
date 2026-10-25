@@ -305,21 +305,6 @@ const SafariDesktopToolbar = ({
                 <div className="space-y-3">
                   <div
                     onClick={() => {
-                      openWindow("resume");
-                      setShowDownloads(false);
-                    }}
-                    className="flex items-center gap-2.5 cursor-pointer hover:bg-black/5 p-1 rounded transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded bg-red-100 flex items-center justify-center font-bold text-red-600 text-[10px]">
-                      PDF
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate text-left">Kuldeep_Resume.pdf</p>
-                      <p className="text-[10px] text-gray-400 text-left">2.4 MB — Complete</p>
-                    </div>
-                  </div>
-                  <div
-                    onClick={() => {
                       openWindow("vscode");
                       setShowDownloads(false);
                     }}
@@ -330,7 +315,7 @@ const SafariDesktopToolbar = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold truncate text-left">
-                        Project_Portfolio_Source.zip
+                        orbit-todo-source.zip
                       </p>
                       <p className="text-[10px] text-gray-400 text-left">14.8 MB — Complete</p>
                     </div>
@@ -458,21 +443,7 @@ const SafariMobileHeader = ({
               </button>
             </div>
             <div className="space-y-2">
-              <div
-                onClick={() => {
-                  openWindow("resume");
-                  setShowDownloads(false);
-                }}
-                className="flex items-center gap-2.5 cursor-pointer hover:bg-black/5 p-1 rounded transition-colors"
-              >
-                <div className="w-7 h-7 rounded bg-red-100 flex items-center justify-center font-bold text-red-600 text-[9px]">
-                  PDF
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate text-left">Kuldeep_Resume.pdf</p>
-                  <p className="text-[9px] text-gray-400 text-left">2.4 MB — Complete</p>
-                </div>
-              </div>
+              <p className="text-[10px] text-gray-400 text-center py-2">No recent downloads</p>
             </div>
           </div>
         )}

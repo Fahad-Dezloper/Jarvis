@@ -50,7 +50,7 @@ const SettingsSidebar = ({
               <h2 className="text-[17px] font-semibold text-black truncate leading-tight">
                 {githubData?.profile?.name || githubData?.profile?.login || "Loading..."}
               </h2>
-              <p className="text-[13px] text-gray-500 truncate mt-0.5">Apple ID, iCloud, Media</p>
+              <p className="text-[13px] text-gray-500 truncate mt-0.5">Guest account</p>
             </div>
             <ChevronRight size={18} className="text-gray-400 shrink-0" />
           </div>
@@ -131,7 +131,7 @@ const SettingsSidebar = ({
                       {githubData.profile.name || githubData.profile.login}
                     </h3>
                     <p className="text-[11px] text-gray-500 truncate leading-tight mt-0.5">
-                      Apple ID, iCloud, Media
+                      Guest account
                     </p>
                   </div>
                 </>

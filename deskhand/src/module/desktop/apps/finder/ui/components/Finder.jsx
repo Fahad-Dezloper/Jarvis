@@ -4,7 +4,10 @@ import windowWrapper from "@hoc/windowWrapper";
 import useLocationStore from "@store/location";
 import useWindowsStore from "@store/window";
 import { Search, ChevronRight, FileText } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import "../../../devBridge";
+import { registerHandlers, registerSummary } from "@deskhand/bridge";
+import { findFinderItem } from "../../finderSearch";
 import { fileIconMap } from "./finderData";
 import FinderSection from "../section/FinderSection";
 import FinderAboutModal from "./FinderAboutModal";
@@ -113,6 +116,42 @@ const Finder = () => {
       setActiveLocation(prev);
     }
   };
+
+  // Fresh state for the voice handler (registered once, read through refs).
+  const live = useRef({});
+  useEffect(() => {
+    live.current = { openItem, handleNavigate, activeLocation, isMobile };
+  });
+
+  useEffect(() => {
+    const unregister = registerHandlers("finder", {
+      open: (args) => {
+        try {
+          const name = String(args?.name ?? "").trim();
+          if (!name) return { ok: false, message: "No file or folder name was given." };
+          const item = findFinderItem(name, Object.values(locations));
+          if (!item) {
+            return { ok: false, message: `I could not find "${name}" in Finder.` };
+          }
+          const { openItem: open, handleNavigate: navigate, isMobile: mobile } = live.current;
+          if (item.kind === "folder" && !mobile) navigate(item);
+          else open(item);
+          return { ok: true, message: `Opened ${item.name}.` };
+        } catch (err) {
+          return { ok: false, message: `Could not open that: ${err?.message || err}` };
+        }
+      },
+    });
+    const unregisterSummary = registerSummary("finder", () => {
+      const loc = live.current.activeLocation;
+      const names = (loc?.children || []).slice(0, 8).map((c) => c.name);
+      return `Finder is showing "${loc?.name || "nothing"}"${names.length ? ` containing: ${names.join(", ")}` : ""}.`;
+    });
+    return () => {
+      unregister();
+      unregisterSummary();
+    };
+  }, []);
 
   if (isMobile) {
     return (

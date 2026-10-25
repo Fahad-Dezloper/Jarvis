@@ -21,6 +21,8 @@ const MusicSection = (props) => {
     isRepeat,
     setIsRepeat,
     isLoading,
+    needsGesture,
+    allowSound,
     audioRef,
     searchInputRef,
     handleTimeUpdate,
@@ -107,6 +109,15 @@ const MusicSection = (props) => {
           isNarrow={isNarrow}
         />
       </div>
+
+      {needsGesture && (
+        <button
+          onClick={allowSound}
+          className="shrink-0 w-full py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold cursor-pointer transition-colors"
+        >
+          Click to allow sound
+        </button>
+      )}
 
       <MusicPlayerSection
         activeTrack={activeTrack}

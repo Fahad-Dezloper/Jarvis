@@ -201,10 +201,10 @@ const useVSCode = () => {
           output = [args.join(" ") || ""];
           break;
         case "pwd":
-          output = ["/Users/kuldeep/workspace/portfolio"];
+          output = ["/Users/guest/workspace/hello-deskhand"];
           break;
         case "whoami":
-          output = ["kuldeep"];
+          output = ["guest"];
           break;
         case "date":
           output = [new Date().toString()];
@@ -224,7 +224,7 @@ const useVSCode = () => {
             output = ["10.9.2"];
           } else if (args[0] === "run" && args[1] === "dev") {
             output = [
-              "> portfolio@1.0.0 dev",
+              "> hello-deskhand@1.0.0 dev",
               "> next dev",
               "",
               "  ▲ Next.js 16.2.6",
@@ -295,16 +295,16 @@ const useVSCode = () => {
           } else if (sub === "log") {
             output = [
               "commit a1b2c3d (HEAD -> main, origin/main)",
-              "Author: Kuldeep Rajput <kuldeep@dev.com>",
+              "Author: Guest <guest@deskhand.local>",
               `Date:   ${new Date().toDateString()}`,
               "",
-              "    Initial portfolio setup",
+              "    Initial project setup",
               "",
               "commit e4f5g6h",
-              "Author: Kuldeep Rajput <kuldeep@dev.com>",
+              "Author: Guest <guest@deskhand.local>",
               "Date:   Sat Jun 7 2026",
               "",
-              "    Add macOS desktop simulation",
+              "    Add greeting component",
             ];
           } else if (sub === "branch") {
             output = ["* main", "  develop", "  feature/weather-app"];

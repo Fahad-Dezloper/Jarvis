@@ -1,10 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import useWindowsStore from "@store/window";
+import "../../devBridge";
+import { registerHandlers, registerSummary } from "@deskhand/bridge";
 import { DEFAULT_BOOKMARKS, IFRAME_COMPATIBLE_SITES, MOCK_HISTORY } from "../data";
-import { PROJECT_1_URL, PROJECT_2_URL, PROJECT_3_URL } from "@constants";
+import {
+  ARTIFACT_URL,
+  START_URL,
+  findMockPage,
+  isCurrentPageRef,
+  pickLink,
+  resolveTarget,
+} from "../data/pages";
+import { copyText } from "../clipboard";
+
+// The browser opens on the built-in shared artifact; Back leads to the start page.
+const makeInitialTab = () => ({
+  id: "tab-1",
+  title: "Poker odds explained",
+  url: ARTIFACT_URL,
+  history: [START_URL, ARTIFACT_URL],
+  historyIndex: 1,
+  isReaderMode: false,
+});
 
 const isIframeable = (url) => {
   if (url.startsWith("safari://")) return true;
+  if (findMockPage(url)) return true;
   const urlLower = url.toLowerCase();
   if (urlLower.includes("wikipedia.org")) return true;
   try {
@@ -21,16 +42,7 @@ const isIframeable = (url) => {
 };
 
 const useSafari = () => {
-  const [tabs, setTabs] = useState([
-    {
-      id: "tab-1",
-      title: "Start Page",
-      url: "safari://start",
-      history: ["safari://start"],
-      historyIndex: 0,
-      isReaderMode: false,
-    },
-  ]);
+  const [tabs, setTabs] = useState(() => [makeInitialTab()]);
   const [activeTabId, setActiveTabId] = useState("tab-1");
   const [addressInput, setAddressInput] = useState("");
   const [showSidebar, setShowSidebar] = useState(false);
@@ -73,16 +85,7 @@ const useSafari = () => {
   // Reset tabs when Safari window is closed
   useEffect(() => {
     if (!isOpen) {
-      setTabs([
-        {
-          id: "tab-1",
-          title: "Start Page",
-          url: "safari://start",
-          history: ["safari://start"],
-          historyIndex: 0,
-          isReaderMode: false,
-        },
-      ]);
+      setTabs([makeInitialTab()]);
       setActiveTabId("tab-1");
       setAddressInput("");
       setShowSidebar(false);
@@ -165,18 +168,10 @@ const useSafari = () => {
 
     const lowerQuery = targetUrl.toLowerCase();
     let isRedirected = false;
+    const mockHit = findMockPage(targetUrl);
 
-    if (lowerQuery.includes("youtube")) {
-      targetUrl = PROJECT_1_URL;
-      isRedirected = true;
-    } else if (lowerQuery.includes("course") || lowerQuery.includes("coursenva")) {
-      targetUrl = PROJECT_2_URL;
-      isRedirected = true;
-    } else if (lowerQuery.includes("resuvee") || lowerQuery.includes("resume")) {
-      targetUrl = PROJECT_3_URL;
-      isRedirected = true;
-    } else if (lowerQuery.includes("portfolio")) {
-      targetUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+    if (mockHit) {
+      targetUrl = mockHit.url;
       isRedirected = true;
     } else if (lowerQuery.includes("wikipedia")) {
       targetUrl = "https://en.wikipedia.org";
@@ -226,7 +221,9 @@ const useSafari = () => {
           nextHistory.push(targetUrl);
 
           let newTitle;
-          if (targetUrl === "safari://start") {
+          if (mockHit) {
+            newTitle = mockHit.title;
+          } else if (targetUrl === "safari://start") {
             newTitle = "Start Page";
           } else if (targetUrl === "safari://privacy-report") {
             newTitle = "Privacy Report";
@@ -234,21 +231,10 @@ const useSafari = () => {
             newTitle = "History";
           } else if (targetUrl === "safari://bookmarks") {
             newTitle = "Bookmarks";
-          } else if (targetUrl === PROJECT_1_URL) {
-            newTitle = "NewTube";
-          } else if (targetUrl === PROJECT_2_URL) {
-            newTitle = "Coursenva";
-          } else if (targetUrl === PROJECT_3_URL) {
-            newTitle = "Resuvee";
           } else if (targetUrl === "https://en.wikipedia.org") {
             newTitle = "Wikipedia";
           } else if (targetUrl === "https://openstreetmap.org") {
             newTitle = "OpenStreetMap";
-          } else if (
-            targetUrl ===
-            (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000")
-          ) {
-            newTitle = "Portfolio";
           } else if (
             targetUrl.includes("google.com/search") ||
             targetUrl.includes("duckduckgo.com") ||
@@ -308,7 +294,6 @@ const useSafari = () => {
       }
       setWindowData("safari", null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [safariWindowData]);
 
   const handleGoBack = () => {
@@ -354,17 +339,14 @@ const useSafari = () => {
   };
 
   const getTitleForUrl = (url) => {
+    const mock = findMockPage(url);
+    if (mock) return mock.title;
     if (url === "safari://start") return "Start Page";
     if (url === "safari://privacy-report") return "Privacy Report";
     if (url === "safari://history") return "History";
     if (url === "safari://bookmarks") return "Bookmarks";
-    if (url === PROJECT_1_URL) return "NewTube";
-    if (url === PROJECT_2_URL) return "Coursenva";
-    if (url === PROJECT_3_URL) return "Resuvee";
     if (url === "https://en.wikipedia.org") return "Wikipedia";
     if (url === "https://openstreetmap.org") return "OpenStreetMap";
-    if (url === (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"))
-      return "Portfolio";
     if (
       url.includes("google.com/search") ||
       url.includes("duckduckgo.com") ||
@@ -431,6 +413,102 @@ const useSafari = () => {
       ]);
     }
   };
+
+  // Fresh state for the voice handlers (registered once, read through refs).
+  const live = useRef({});
+  useEffect(() => {
+    live.current = { activeTab, bookmarks, navigateTabTo, handleGoBack };
+  });
+
+  useEffect(() => {
+    const visibleLinks = () => {
+      const out = [];
+      try {
+        document.querySelectorAll("#safari a[data-dk-url]").forEach((a) => {
+          const label = (a.textContent || a.getAttribute("title") || "").trim();
+          if (label) out.push({ label, url: a.getAttribute("data-dk-url") });
+        });
+      } catch {
+        /* no DOM */
+      }
+      for (const b of live.current.bookmarks || []) out.push({ label: b.title, url: b.url });
+      return out;
+    };
+
+    const unregister = registerHandlers("browser", {
+      open_url: (args) => {
+        try {
+          const target = String(args?.url ?? "").trim();
+          if (!target) return { ok: false, message: "No page or link was given." };
+          const hit = resolveTarget(target, visibleLinks());
+          const url = hit ? hit.url : target;
+          live.current.navigateTabTo(url);
+          const mock = findMockPage(url);
+          const what = mock ? mock.title : url === START_URL ? "the start page" : url;
+          return { ok: true, message: `Opened ${what}.` };
+        } catch (err) {
+          return { ok: false, message: `Could not open that page: ${err?.message || err}` };
+        }
+      },
+      copy_link: async (args) => {
+        try {
+          const element = String(args?.element ?? "").trim();
+          const current = live.current.activeTab;
+          let url = current.url;
+          let label = current.title;
+          if (element && !isCurrentPageRef(element)) {
+            const link = pickLink(element, visibleLinks());
+            if (link) {
+              url = link.url;
+              label = link.label;
+            } else if (pickLink(element, [{ label: current.title, url: current.url }], 30)) {
+              url = current.url;
+            } else {
+              const mock = resolveTarget(element, []);
+              if (mock) url = mock.url;
+              else
+                return {
+                  ok: false,
+                  message: `I could not find a link called "${element}" on this page.`,
+                };
+            }
+          }
+          if (url === START_URL) {
+            return { ok: false, message: "The start page has no shareable link." };
+          }
+          const copied = await copyText(url);
+          return {
+            ok: true,
+            message: copied
+              ? `Copied ${url} to the clipboard.`
+              : `Copied ${url} (held in the desktop clipboard; the system clipboard was blocked).`,
+            url,
+            label,
+          };
+        } catch (err) {
+          return { ok: false, message: `Could not copy the link: ${err?.message || err}` };
+        }
+      },
+      back: () => {
+        try {
+          const tab = live.current.activeTab;
+          if (tab.historyIndex <= 0) return { ok: false, message: "There is no earlier page to go back to." };
+          live.current.handleGoBack();
+          return { ok: true, message: "Went back one page." };
+        } catch (err) {
+          return { ok: false, message: `Could not go back: ${err?.message || err}` };
+        }
+      },
+    });
+    const unregisterSummary = registerSummary("browser", () => {
+      const tab = live.current.activeTab;
+      return `Browser is showing "${tab.title}" at ${tab.url}. ${tab.historyIndex > 0 ? "Back is available." : "No earlier page."}`;
+    });
+    return () => {
+      unregister();
+      unregisterSummary();
+    };
+  }, []);
 
   return {
     tabs,

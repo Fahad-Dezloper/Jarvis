@@ -7,6 +7,7 @@ import NotesEditorSection from "./NotesEditorSection";
 const NotesSection = ({
   activeNote,
   activeNoteId,
+  flash,
   searchQuery,
   isSidebarOpen,
   setActiveNoteId,
@@ -107,7 +108,7 @@ const NotesSection = ({
         </div>
         <div className="flex items-center gap-3 md:gap-5">
           <button
-            onClick={handleCreateNote}
+            onClick={() => handleCreateNote()}
             className="p-1.5 rounded hover:bg-gray-200 active:scale-95 transition-all text-[#e4a52e] hover:text-[#d89216]"
             title="New Note"
           >
@@ -138,6 +139,7 @@ const NotesSection = ({
         />
         <NotesEditorSection
           activeNote={activeNote}
+          flash={flash}
           onUpdateNote={handleUpdateNote}
           onDeleteNote={handleDeleteNote}
           wordCount={wordCount}

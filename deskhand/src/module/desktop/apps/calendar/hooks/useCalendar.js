@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
 
+const pad = (n) => String(n).padStart(2, "0");
+const isoDay = (offsetDays = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
 const useCalendar = () => {
-  const [currentDate] = useState(new Date(2026, 4, 26));
-  const [selectedDate, setSelectedDate] = useState(new Date(2026, 4, 26));
+  const [currentDate] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [month, setMonth] = useState(currentDate.getMonth());
@@ -17,7 +24,7 @@ const useCalendar = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
-  const [eventDate, setEventDate] = useState("2026-05-26");
+  const [eventDate, setEventDate] = useState(() => isoDay(0));
   const [eventStart, setEventStart] = useState("09:00");
   const [eventEnd, setEventEnd] = useState("10:00");
   const [eventCategory, setEventCategory] = useState("personal");
@@ -26,7 +33,7 @@ const useCalendar = () => {
   const [dayEventsPopover, setDayEventsPopover] = useState(null);
 
   const [events, setEvents] = useState(() => {
-    const saved = localStorage.getItem("macos_portfolio_calendar_events");
+    const saved = localStorage.getItem("deskhand_calendar_events");
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -37,54 +44,54 @@ const useCalendar = () => {
     return [
       {
         id: "1",
-        title: "Kuldeep's Birthday 🎂",
-        date: "2026-05-26",
-        start: "00:00",
-        end: "23:59",
-        category: "birthdays",
-        desc: "Celebrate Kuldeep's birthday and review macos portfolio improvements!",
+        title: "Team Sync",
+        date: isoDay(0),
+        start: "10:00",
+        end: "10:30",
+        category: "work",
+        desc: "Weekly check-in: review priorities and blockers.",
       },
       {
         id: "2",
-        title: "Antigravity Code Review 🚀",
-        date: "2026-05-26",
+        title: "Design Review",
+        date: isoDay(0),
         start: "14:00",
         end: "15:30",
         category: "work",
-        desc: "Review design elements, dynamic dock, and calendar integration.",
+        desc: "Walk through the latest mockups and collect feedback.",
       },
       {
         id: "3",
-        title: "Lunch with Design Team",
-        date: "2026-05-27",
+        title: "Lunch with a Friend",
+        date: isoDay(1),
         start: "12:30",
         end: "13:30",
         category: "personal",
-        desc: "Discuss visual animations and glassmorphism elements.",
+        desc: "Catch up over lunch.",
       },
       {
         id: "4",
-        title: "Project Alpha Release 📦",
-        date: "2026-05-29",
+        title: "Project Release",
+        date: isoDay(3),
         start: "09:00",
         end: "10:30",
         category: "work",
-        desc: "Build bundle and perform end-to-end user experience checks.",
+        desc: "Build the bundle and run the final checks.",
       },
       {
         id: "5",
-        title: "Memorial Day Holiday 🇺🇸",
-        date: "2026-05-25",
+        title: "Mom's Birthday",
+        date: isoDay(5),
         start: "00:00",
         end: "23:59",
-        category: "holidays",
-        desc: "Federal public holiday.",
+        category: "birthdays",
+        desc: "Don't forget the card.",
       },
     ];
   });
 
   useEffect(() => {
-    localStorage.setItem("macos_portfolio_calendar_events", JSON.stringify(events));
+    localStorage.setItem("deskhand_calendar_events", JSON.stringify(events));
   }, [events]);
 
   const toggleCategory = (catId) => {

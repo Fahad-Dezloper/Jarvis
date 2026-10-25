@@ -138,7 +138,7 @@ const VSCode = () => {
           {containerWidth >= 400 && (
             <div className="flex-1 text-center font-medium text-[11px] truncate px-4">
               {containerWidth >= 520
-                ? `${hook.activeFile} — portfolio (Workspace)`
+                ? `${hook.activeFile} — hello-deskhand (Workspace)`
                 : hook.activeFile.split("/").pop()}
             </div>
           )}

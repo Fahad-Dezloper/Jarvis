@@ -180,7 +180,7 @@ const VSCodeEditorSection = ({
               <iframe
                 key={reloadKey}
                 src={PORTFOLIO_ALT_URL}
-                title="Portfolio Live Preview"
+                title="Live Preview"
                 className="w-full h-full border-none"
                 style={{ background: "#ffffff" }}
               />

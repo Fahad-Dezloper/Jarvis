@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import "../../devBridge";
+import { registerHandlers, registerSummary } from "@deskhand/bridge";
 
 const defaultFolders = [
   { id: "all", name: "All Notes" },
@@ -26,33 +28,45 @@ const defaultNotes = [
   },
 ];
 
-export default function useNotes() {
-  const [folders, setFolders] = useState(() => {
-    const saved = localStorage.getItem("macos_portfolio_note_folders");
+const readStorage = (key, fallback, validate) => {
+  try {
+    const saved = localStorage.getItem(key);
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
+      const parsed = JSON.parse(saved);
+      if (!validate || validate(parsed)) return parsed;
     }
-    return defaultFolders;
-  });
+  } catch (e) {
+    console.error(e);
+  }
+  return fallback;
+};
 
-  const [notes, setNotes] = useState(() => {
-    const saved = localStorage.getItem("macos_portfolio_notes");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return defaultNotes;
-  });
+const writeStorage = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable: keep working in memory */
+  }
+};
+
+const escapeHtml = (s) =>
+  String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+const nonEmptyArray = (v) => Array.isArray(v) && v.length > 0;
+
+export default function useNotes() {
+  const [folders, setFolders] = useState(() =>
+    readStorage("macos_portfolio_note_folders", defaultFolders, nonEmptyArray),
+  );
+
+  const [notes, setNotes] = useState(() =>
+    readStorage("macos_portfolio_notes", defaultNotes, nonEmptyArray),
+  );
 
   const [activeFolderId, setActiveFolderId] = useState("all");
-  const [activeNoteId, setActiveNoteId] = useState("");
+  // Start with the first note selected so something is always visible.
+  const [activeNoteId, setActiveNoteId] = useState(() => notes[0]?.id || "");
+  const [flash, setFlash] = useState({ id: "", n: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -63,11 +77,11 @@ export default function useNotes() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("macos_portfolio_note_folders", JSON.stringify(folders));
+    writeStorage("macos_portfolio_note_folders", folders);
   }, [folders]);
 
   useEffect(() => {
-    localStorage.setItem("macos_portfolio_notes", JSON.stringify(notes));
+    writeStorage("macos_portfolio_notes", notes);
   }, [notes]);
 
   const stripHtml = (html) => {
@@ -140,17 +154,21 @@ export default function useNotes() {
     });
   };
 
-  const handleCreateNote = () => {
+  const handleCreateNote = (title) => {
+    const named = typeof title === "string" && title.trim() ? title.trim() : "";
     const newNote = {
-      id: Date.now().toString(),
+      id: `${Date.now()}${Math.floor(Math.random() * 1000)}`,
       folderId: activeFolderId === "all" ? "notes" : activeFolderId,
-      title: "New Note",
-      preview: "Start writing...",
-      body: "<div><strong>New Note</strong></div><div>Start writing...</div>",
+      title: named || "New Note",
+      preview: named ? "No additional text" : "Start writing...",
+      body: named
+        ? `<div><strong>${escapeHtml(named)}</strong></div><div><br></div>`
+        : "<div><strong>New Note</strong></div><div>Start writing...</div>",
       updatedAt: new Date().toISOString(),
     };
     setNotes((prev) => [newNote, ...prev]);
     setActiveNoteId(newNote.id);
+    return newNote;
   };
 
   const handleDeleteNote = (id) => {
@@ -202,6 +220,72 @@ export default function useNotes() {
 
   const filteredNotes = getFilteredNotes();
 
+  // Fresh state for the voice handlers (registered once, read through refs).
+  const live = useRef({});
+  useEffect(() => {
+    live.current = { notes, activeNote, createNote: handleCreateNote };
+  });
+
+  useEffect(() => {
+    const unregister = registerHandlers("notes", {
+      append_note: (args) => {
+        try {
+          const text = String(args?.text ?? "").trim();
+          if (!text) return { ok: false, message: "There was no text to add to the note." };
+          const { activeNote: current } = live.current;
+          let target = current;
+          let id = target?.id;
+          if (!target) {
+            const created = live.current.createNote("New Note");
+            id = created.id;
+            target = created;
+          }
+          const lines = text.split(/\r?\n/).filter((l) => l.trim());
+          const html = lines.map((l) => `<div>${escapeHtml(l)}</div>`).join("");
+          setNotes((prev) =>
+            prev.map((n) => {
+              if (n.id !== id) return n;
+              const base = (n.body || "").replace(/(<div><br><\/div>)+$/i, "");
+              const body = base + html;
+              const { title, preview } = parseNoteTitleAndBody(body);
+              return { ...n, body, title, preview, updatedAt: new Date().toISOString() };
+            }),
+          );
+          setActiveNoteId(id);
+          setFlash((f) => ({ id, n: f.n + 1 }));
+          const title = target.title || "the note";
+          return {
+            ok: true,
+            message: `Added to "${title}": ${text.length > 120 ? text.slice(0, 117) + "..." : text}`,
+          };
+        } catch (err) {
+          return { ok: false, message: `Could not add to the note: ${err?.message || err}` };
+        }
+      },
+      new_note: (args) => {
+        try {
+          const title = String(args?.title ?? "").trim();
+          setActiveFolderId("all");
+          live.current.createNote(title);
+          return { ok: true, message: title ? `Created a new note "${title}".` : "Created a new note." };
+        } catch (err) {
+          return { ok: false, message: `Could not create the note: ${err?.message || err}` };
+        }
+      },
+    });
+    const unregisterSummary = registerSummary("notes", () => {
+      const { notes: all, activeNote: current } = live.current;
+      if (!current) return `Notes has ${all.length} notes and none is open.`;
+      const plain = stripHtml(current.body || "");
+      const tail = plain.length > 80 ? "..." + plain.slice(-80) : plain;
+      return `Notes has ${all.length} notes. Current note "${current.title}" ends with: ${tail}`;
+    });
+    return () => {
+      unregister();
+      unregisterSummary();
+    };
+  }, []);
+
   const formatDate = (isoStr) => {
     const date = new Date(isoStr);
     const now = new Date();
@@ -223,6 +307,7 @@ export default function useNotes() {
     activeFolderId,
     activeNote,
     activeNoteId,
+    flash,
     searchQuery,
     isSidebarOpen,
     setActiveFolderId,

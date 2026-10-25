@@ -3,6 +3,7 @@ import NoteEditor from "../components/NoteEditor";
 
 const NotesEditorSection = ({
   activeNote,
+  flash,
   onUpdateNote,
   onDeleteNote,
   wordCount,
@@ -78,7 +79,12 @@ const NotesEditorSection = ({
           <Trash2 className="w-4 h-4" />
         </button>
       </div>
-      <NoteEditor activeNote={activeNote} onUpdateNote={onUpdateNote} onCreateNote={onCreateNote} />
+      <NoteEditor
+        activeNote={activeNote}
+        flash={flash}
+        onUpdateNote={onUpdateNote}
+        onCreateNote={() => onCreateNote()}
+      />
     </div>
   );
 };

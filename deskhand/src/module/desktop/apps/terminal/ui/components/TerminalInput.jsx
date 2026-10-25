@@ -2,8 +2,18 @@ import { useEffect } from "react";
 import { Terminal as XTerm } from "xterm";
 import "xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
-import { techStack, projects, GITHUB_PROFILE, PORTFOLIO_URL, EMAIL } from "@constants";
 import useWindowsStore from "@store/window";
+import "../../../devBridge";
+import { registerHandlers, registerSummary } from "@deskhand/bridge";
+import {
+  createSession,
+  interpret,
+  promptText,
+  welcomeEvents,
+  eventsToText,
+} from "../../interpreter";
+
+const TYPE_DELAY_MS = 12;
 
 const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
   const isOpen = useWindowsStore((state) => state.windows.terminal?.isOpen);
@@ -14,177 +24,212 @@ const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
     let term = null;
     let fitAddon = null;
     let isOpened = false;
-    let bannerShown = false;
-    let printBanner = null;
+    let disposed = false;
+
+    const session = createSession();
+    const state = {
+      busy: false,
+      serving: false,
+      token: 0,
+      history: [],
+      histIdx: -1,
+      lastCommand: "",
+      chain: Promise.resolve(),
+    };
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const prompt = () => term && term.write(promptText(session));
+
+    // Prints events one by one. Resolves false if cancelled (Ctrl+C / unmount).
+    const play = async (events, token) => {
+      for (const e of events) {
+        if (disposed || token !== state.token) return false;
+        if (e.delay) await sleep(e.delay);
+        if (disposed || token !== state.token) return false;
+        if (e.clear) term.write("\x1b[2J\x1b[3J\x1b[H");
+        else term.write(e.text + "\r\n");
+      }
+      return true;
+    };
+
+    // Runs a command line that is already echoed on screen.
+    const submit = async (cmd) => {
+      const trimmed = cmd.trim();
+      commandRef.current = "";
+      state.histIdx = -1;
+      if (!trimmed) {
+        term.write("\r\n");
+        prompt();
+        return { text: "", serving: false };
+      }
+      state.history.push(trimmed);
+      state.lastCommand = trimmed;
+      term.write("\r\n");
+      state.busy = true;
+      const token = ++state.token;
+      let result;
+      try {
+        result = interpret(trimmed, session);
+      } catch (err) {
+        result = { events: [{ text: `error: ${err?.message || err}`, delay: 0 }], serve: false };
+      }
+      const completed = await play(result.events, token);
+      if (disposed) return { text: "", serving: false };
+      if (!completed) return { text: eventsToText(result.events), serving: false };
+      state.busy = false;
+      if (result.serve) {
+        state.serving = true;
+      } else {
+        prompt();
+      }
+      return { text: eventsToText(result.events), serving: !!result.serve };
+    };
+
+    const interrupt = () => {
+      state.token++;
+      state.busy = false;
+      state.serving = false;
+      commandRef.current = "";
+      term.write("^C\r\n");
+      prompt();
+    };
+
+    const setLine = (text) => {
+      const cur = commandRef.current;
+      if (cur.length) term.write("\b \b".repeat(cur.length));
+      commandRef.current = text;
+      if (text) term.write(text);
+    };
+
+    const whenReady = async () => {
+      for (let i = 0; i < 80 && !disposed; i++) {
+        if (isOpened && term) return true;
+        await sleep(50);
+      }
+      return false;
+    };
+
+    const typeAndRun = async (command) => {
+      if (!(await whenReady())) {
+        return { ok: false, message: "The terminal is not ready yet." };
+      }
+      if (state.serving) interrupt();
+      for (let i = 0; i < 100 && state.busy && !disposed; i++) await sleep(100);
+      if (disposed) return { ok: false, message: "The terminal was closed." };
+      setLine("");
+      for (const ch of command) {
+        if (disposed) return { ok: false, message: "The terminal was closed." };
+        term.write(ch);
+        commandRef.current += ch;
+        await sleep(TYPE_DELAY_MS);
+      }
+      await sleep(120);
+      const { text, serving } = await submit(commandRef.current);
+      const tail = text.split("\n").filter(Boolean).slice(-6).join(" | ").slice(0, 320);
+      return {
+        ok: true,
+        message: `Ran "${command}" in the terminal${serving ? " (the dev server keeps running)" : ""}.${tail ? ` Output: ${tail}` : ""}`,
+      };
+    };
+
+    const queue = (fn) => {
+      const p = state.chain.then(fn, fn);
+      state.chain = p.then(
+        () => undefined,
+        () => undefined,
+      );
+      return p;
+    };
+
+    const unregister = registerHandlers("terminal", {
+      run_command: async (args) => {
+        try {
+          const command = String(args?.command ?? "").trim();
+          if (!command) return { ok: false, message: "No command given." };
+          return await queue(() => typeAndRun(command));
+        } catch (err) {
+          return { ok: false, message: `Terminal error: ${err?.message || err}` };
+        }
+      },
+      clear: async () => {
+        try {
+          if (!(await whenReady())) return { ok: false, message: "The terminal is not ready yet." };
+          return await queue(async () => {
+            if (state.serving) interrupt();
+            state.token++;
+            state.busy = false;
+            term.write("\x1b[2J\x1b[3J\x1b[H");
+            commandRef.current = "";
+            prompt();
+            return { ok: true, message: "Cleared the terminal." };
+          });
+        } catch (err) {
+          return { ok: false, message: `Terminal error: ${err?.message || err}` };
+        }
+      },
+    });
+    const unregisterSummary = registerSummary("terminal", () =>
+      state.serving
+        ? `Terminal is running a dev server (last command: ${state.lastCommand}). Working dir ${session.cwd}.`
+        : state.lastCommand
+          ? `Terminal idle at ${session.cwd}; last command: ${state.lastCommand}.`
+          : `Terminal idle at ${session.cwd}; no commands run yet.`,
+    );
 
     const setupHandlers = (t) => {
-      const prompt = () => {
-        t.write("\r\n\x1b[1;32mkuldeep@macbook ~ %\x1b[0m ");
-      };
-
-      const println = (msg) => {
-        t.write("\r\n" + msg + "\x1b[0m");
-      };
-
-      const gradientChar = (char, tVal) => {
-        const colors = [
-          [239, 68, 68],
-          [249, 115, 22],
-          [234, 179, 8],
-        ];
-        let r, g, b;
-        if (tVal <= 0.5) {
-          const f = tVal / 0.5;
-          r = Math.round(colors[0][0] + (colors[1][0] - colors[0][0]) * f);
-          g = Math.round(colors[0][1] + (colors[1][1] - colors[0][1]) * f);
-          b = Math.round(colors[0][2] + (colors[1][2] - colors[0][2]) * f);
-        } else {
-          const f = (tVal - 0.5) / 0.5;
-          r = Math.round(colors[1][0] + (colors[2][0] - colors[1][0]) * f);
-          g = Math.round(colors[1][1] + (colors[2][1] - colors[1][1]) * f);
-          b = Math.round(colors[1][2] + (colors[2][2] - colors[1][2]) * f);
-        }
-        return `\x1b[38;2;${r};${g};${b}m${char}`;
-      };
-      const gradientLine = (str) =>
-        [...str].map((c, i, a) => gradientChar(c, a.length > 1 ? i / (a.length - 1) : 0)).join("") +
-        "\x1b[0m";
-
-      const hulkLines = [
-        "██╗  ██╗██╗   ██╗██╗     ██████╗ ███████╗███████╗██████╗ ",
-        "██║ ██╔╝██║   ██║██║     ██╔══██╗██╔════╝██╔════╝██╔══██╗",
-        "█████╔╝ ██║   ██║██║     ██║  ██║█████╗  █████╗  ██████╔╝",
-        "██╔═██╗ ██║   ██║██║     ██║  ██║██╔══╝  ██╔══╝  ██╔═══╝ ",
-        "██║  ██╗╚██████╔╝███████╗██████╔╝███████╗███████╗██║     ",
-        "╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═════╝ ╚══════╝╚══════╝╚═╝     ",
-      ];
-      printBanner = (terminal) => {
-        if (terminal.cols >= 62) {
-          hulkLines.forEach((line) => terminal.writeln(gradientLine(line)));
-          bannerShown = true;
-        } else {
-          bannerShown = false;
-        }
-        terminal.write("Last login: " + new Date().toLocaleString() + " / help?");
-        prompt();
-      };
-
-      printBanner(t);
+      for (const e of welcomeEvents(session)) t.write(e.text + "\r\n");
+      t.write("\r\n");
+      prompt();
 
       t.onData((data) => {
+        if (state.serving) {
+          if (data.includes("\x03")) interrupt();
+          return;
+        }
+        if (state.busy) {
+          if (data.includes("\x03")) interrupt();
+          return;
+        }
+
+        if (data.length > 1 && !data.startsWith("\x1b")) {
+          // Pasted text: take printable characters only (first line).
+          const first = data.split(/\r|\n/)[0];
+          for (const ch of first) {
+            const code = ch.charCodeAt(0);
+            if (code >= 32 && code !== 127) {
+              commandRef.current += ch;
+              t.write(ch);
+            }
+          }
+          if (/[\r\n]/.test(data)) submit(commandRef.current);
+          return;
+        }
+
+        if (data === "\x1b[A") {
+          if (state.history.length === 0) return;
+          state.histIdx =
+            state.histIdx === -1 ? state.history.length - 1 : Math.max(0, state.histIdx - 1);
+          setLine(state.history[state.histIdx]);
+          return;
+        }
+        if (data === "\x1b[B") {
+          if (state.histIdx === -1) return;
+          state.histIdx++;
+          if (state.histIdx >= state.history.length) {
+            state.histIdx = -1;
+            setLine("");
+          } else {
+            setLine(state.history[state.histIdx]);
+          }
+          return;
+        }
+
         const code = data.charCodeAt(0);
-
         if (code === 13) {
-          const cmd = commandRef.current.trim();
-          if (cmd === "") {
-            prompt();
-            return;
-          }
-
-          const args = cmd.split(" ");
-          const baseCmd = args[0].toLowerCase();
-
-          switch (baseCmd) {
-            case "help":
-              println("\x1b[1;38;2;219;39;119m=== Available Commands ===\x1b[0m");
-              println(
-                "\x1b[1;38;2;16;185;129mhelp\x1b[0m      \x1b[38;2;75;85;99m- Show help message\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mclear\x1b[0m     \x1b[38;2;75;85;99m- Clear screen\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mecho\x1b[0m      \x1b[38;2;75;85;99m- Print text\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mdate\x1b[0m      \x1b[38;2;75;85;99m- Print date/time\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mwhoami\x1b[0m    \x1b[38;2;75;85;99m- Print current user\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mabout\x1b[0m     \x1b[38;2;75;85;99m- About Kuldeep Rajput\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mtechstack\x1b[0m \x1b[38;2;75;85;99m- Display tech stack\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129mprojects\x1b[0m  \x1b[38;2;75;85;99m- Display portfolio projects\x1b[0m",
-              );
-              println(
-                "\x1b[1;38;2;16;185;129msudo\x1b[0m      \x1b[38;2;75;85;99m- Run superuser command\x1b[0m",
-              );
-              break;
-            case "clear":
-              t.clear();
-              break;
-            case "echo":
-              println(args.slice(1).join(" "));
-              break;
-            case "date":
-              println(new Date().toString());
-              break;
-            case "whoami":
-              println("\x1b[38;2;75;85;99mkuldeep\x1b[0m");
-              break;
-            case "about":
-              println("\x1b[1;38;2;219;39;119m=== About Kuldeep Rajput ===\x1b[0m");
-              println("\x1b[1;38;2;16;185;129mName:      \x1b[38;2;75;85;99mKuldeep Rajput\x1b[0m");
-              println(
-                "\x1b[1;38;2;16;185;129mRole:      \x1b[38;2;75;85;99mFull-Stack Developer & Designer\x1b[0m",
-              );
-              println("\x1b[1;38;2;16;185;129mLocation:  \x1b[38;2;75;85;99mIndia 🇮🇳\x1b[0m");
-              println(`\x1b[1;38;2;16;185;129mEmail:     \x1b[4;38;2;37;99;235m${EMAIL}\x1b[0m`);
-              println(
-                `\x1b[1;38;2;16;185;129mGitHub:    \x1b[4;38;2;37;99;235m${GITHUB_PROFILE}\x1b[0m`,
-              );
-              println(
-                `\x1b[1;38;2;16;185;129mPortfolio: \x1b[4;38;2;37;99;235m${PORTFOLIO_URL}\x1b[0m`,
-              );
-              println("\x1b[1;38;2;6;182;212m\r\nBio:\x1b[0m");
-              println(
-                "\x1b[38;2;75;85;99mPassionate developer crafting premium macOS-inspired\x1b[0m",
-              );
-              println("\x1b[38;2;75;85;99mweb experiences with React, Next.js & Node.js.\x1b[0m");
-              println(
-                "\x1b[38;2;75;85;99mType \x1b[1;38;2;16;185;129mtechstack\x1b[0m\x1b[38;2;75;85;99m for skills or \x1b[1;38;2;16;185;129mprojects\x1b[0m\x1b[38;2;75;85;99m for work.\x1b[0m",
-              );
-              break;
-            case "sudo":
-              println(
-                "\x1b[31mkuldeep is not in the sudoers file. This incident will be reported.\x1b[0m",
-              );
-              break;
-            case "techstack":
-              println("\x1b[1;38;2;219;39;119m=== Tech Stack ===\x1b[0m");
-              techStack.forEach(({ category, items }) => {
-                println(`\x1b[1;38;2;6;182;212m${category}:\x1b[0m`);
-                println(`\x1b[38;2;75;85;99m${items.join(", ")}\x1b[0m`);
-              });
-              break;
-            case "projects":
-              println("\x1b[1;38;2;219;39;119m=== Portfolio Projects ===\x1b[0m");
-              projects.forEach((proj) => {
-                println(`\x1b[1;38;2;16;185;129m• ${proj.title}\x1b[0m`);
-                println("\x1b[1;38;2;245;158;11mDescription:\x1b[0m");
-                println(`\x1b[38;2;75;85;99m${proj.description}\x1b[0m`);
-                if (proj.link) {
-                  println("\x1b[1;38;2;6;182;212mLive Demo:\x1b[0m");
-                  println(`\x1b[4;38;2;37;99;235m${proj.link}\x1b[0m`);
-                }
-                if (proj.github) {
-                  println("\x1b[1;38;2;6;182;212mGitHub:\x1b[0m");
-                  println(`\x1b[4;38;2;37;99;235m${proj.github}\x1b[0m`);
-                }
-                println("");
-              });
-              break;
-            default:
-              println(`\x1b[31mzsh: command not found: ${baseCmd}\x1b[0m`);
-          }
-
-          commandRef.current = "";
-          prompt();
+          submit(commandRef.current);
+        } else if (code === 3) {
+          interrupt();
         } else if (code === 127 || code === 8) {
           if (commandRef.current.length > 0) {
             commandRef.current = commandRef.current.slice(0, -1);
@@ -229,13 +274,13 @@ const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
           console.warn("Could not fit terminal on lazy open:", e);
         }
 
+        commandRef.current = "";
         setupHandlers(term);
       }
     };
 
     tryInit();
 
-    let resizeTimer = null;
     const resizeObserver = new ResizeObserver((entries) => {
       for (let entry of entries) {
         const { width, height } = entry.contentRect;
@@ -249,18 +294,6 @@ const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
         } catch {
           /* empty */
         }
-
-        // Debounced banner toggle on resize
-        if (resizeTimer) clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(() => {
-          if (!term || !printBanner) return;
-          const shouldShow = term.cols >= 62;
-          if (shouldShow !== bannerShown) {
-            term.reset();
-            commandRef.current = "";
-            printBanner(term);
-          }
-        }, 200);
       }
     });
 
@@ -282,6 +315,10 @@ const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
     }, 150);
 
     return () => {
+      disposed = true;
+      state.token++;
+      unregister();
+      unregisterSummary();
       clearTimeout(timer);
       resizeObserver.disconnect();
       if (term) {

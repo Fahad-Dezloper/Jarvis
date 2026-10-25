@@ -14,6 +14,8 @@ import {
   Search,
 } from "lucide-react";
 import { TRACKERS } from "../../data";
+import { findMockPage } from "../../data/pages";
+import MockPage from "./MockPages";
 
 const SafariContentView = ({
   activeTab,
@@ -908,6 +910,12 @@ root.render(<App />);`}</div>
         </div>
       </div>
     );
+  }
+
+  // 3b. Built-in pages that need no network
+  const mockPage = findMockPage(activeTab.url);
+  if (mockPage) {
+    return <MockPage page={mockPage} navigate={navigateTabTo} />;
   }
 
   // 4. Real Iframe Support (Direct or via Proxy)
