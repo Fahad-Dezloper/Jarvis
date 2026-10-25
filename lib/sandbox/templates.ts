@@ -42,7 +42,17 @@ body {
 * { box-sizing: border-box; }
 `;
 
-const REACT_EXT = /\.(tsx|jsx|ts|js|mjs)$/i;
+/**
+ * The playback runtime finds GSAP tweens through window.gsap, but a module
+ * import does not set it. Expose the same instance when the component uses it.
+ */
+function gsapGlobalSnippet(code: string): string {
+  return /from\s+["']gsap["']/.test(code)
+    ? `import gsap from "gsap";\n(window as unknown as { gsap: unknown }).gsap = gsap;\n`
+    : "";
+}
+
+const REACT_EXT =/\.(tsx|jsx|ts|js|mjs)$/i;
 
 export function kindFromName(name: string): InputKind | null {
   const lower = name.toLowerCase();
@@ -130,7 +140,7 @@ function buildReact(main: ImportedSource, extraCss: ImportedSource[]): SandboxPr
     "/index.tsx": {
       hidden: true,
       code:
-        `${runtimeEntrySnippet()}import { createRoot } from "react-dom/client";\n` +
+        `${runtimeEntrySnippet()}${gsapGlobalSnippet(main.code)}import { createRoot } from "react-dom/client";\n` +
         `import "./mb-stage.css";\n` +
         cssPaths.map((p) => `import "${p.replace("/", "./")}";\n`).join("") +
         `import App from "./App";\n\n` +
