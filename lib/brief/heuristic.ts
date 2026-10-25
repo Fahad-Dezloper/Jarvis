@@ -1,4 +1,6 @@
 import type { AnimationInfo, BriefInput, BriefIssue, BriefOutput, Pin } from "@/lib/types";
+import { ENDLESS_ITERATIONS } from "./buildInput";
+import { activeAnimationsAt } from "@/lib/narration/pure";
 import { detectVocabulary, type VocabMatch } from "./vocabulary";
 
 /**
@@ -11,12 +13,10 @@ import { detectVocabulary, type VocabMatch } from "./vocabulary";
 export type Phase = "before" | "during" | "after" | "unknown";
 
 const FIXED_CONSTRAINTS = [
-  "Do not change unrelated behaviour, layout, copy, or styling.",
-  "Change only the animation values needed for the issues listed; keep the public API and props of the component the same.",
-  "Keep the existing animation library; do not add dependencies.",
-  "Animate transform and opacity where possible; do not animate layout properties.",
-  "Respect prefers-reduced-motion if the component already does; do not remove it.",
-  "Values marked as suggestions are starting points: tune them by playing the animation, and report the final values.",
+  "Do not change unrelated behaviour, layout, copy, or styling; keep the component's public API and props.",
+  "Change only the animation values the issues call for; keep the existing animation library and add no dependencies.",
+  "Animate transform and opacity, not layout properties; keep any prefers-reduced-motion handling.",
+  "Suggested values are starting points: tune by playing the animation and report the final values.",
 ];
 
 // ---------- text helpers ----------
@@ -67,38 +67,69 @@ function sentenceSelector(sentence: string, input: BriefInput): string | null {
 
 // ---------- measured values ----------
 
+/** buildInput sends endless loops as a huge count; never show that number. */
+export function isEndless(a: AnimationInfo): boolean {
+  return !Number.isFinite(a.iterations) || a.iterations >= ENDLESS_ITERATIONS;
+}
+
+/** Drop a trailing " on <selector>" when the selector is already shown elsewhere. */
+function shortLabel(a: AnimationInfo): string {
+  const suffix = a.selector ? ` on ${a.selector}` : "";
+  return suffix && a.label.endsWith(suffix) ? a.label.slice(0, -suffix.length) : a.label;
+}
+
 export function describeAnimation(a: AnimationInfo): string {
   const parts = [
-    `${a.kind} "${a.label}"`,
+    `${a.kind} "${shortLabel(a)}"`,
     `duration ${Math.round(a.durationMs)}ms`,
     `delay ${Math.round(a.delayMs)}ms`,
     `easing ${a.easing || "unknown"}`,
   ];
-  if (a.iterations !== 1) parts.push(`iterations ${a.iterations}`);
+  if (isEndless(a)) parts.push("infinite");
+  else if (a.iterations !== 1) parts.push(`iterations ${a.iterations}`);
   if (a.properties.length) parts.push(`properties ${a.properties.join(", ")}`);
   return parts.join(", ");
 }
 
 function activeWindow(a: AnimationInfo): [number, number] {
-  const iter = Number.isFinite(a.iterations) ? a.iterations : 1;
-  return [a.delayMs, a.delayMs + a.durationMs * iter];
+  const end = isEndless(a) ? Infinity : a.delayMs + a.durationMs * a.iterations;
+  return [a.delayMs, end];
 }
 
-function animationsFor(timeMs: number | null, selector: string | null, input: BriefInput, pin?: Pin): AnimationInfo[] {
-  if (pin?.measured?.length) return pin.measured;
-  let pool = input.animations;
+const MAX_ANIMS_PER_ISSUE = 3;
+
+function selectorMatches(animSel: string | null, sel: string): boolean {
+  return !!animSel && (animSel === sel || animSel.includes(sel) || sel.includes(animSel));
+}
+
+/**
+ * Animations relevant to one pin: matched by selector first, else those
+ * active at the pin time. `rest` counts relevant-pool animations not listed.
+ */
+function animationsFor(
+  timeMs: number | null,
+  selector: string | null,
+  input: BriefInput,
+  pin?: Pin,
+): { shown: AnimationInfo[]; rest: number; all: AnimationInfo[] } {
+  let pool = pin?.measured?.length ? pin.measured : input.animations;
   if (selector) {
-    const bySel = pool.filter((a) => a.selector === selector);
-    if (bySel.length) pool = bySel;
-  }
-  if (timeMs != null) {
-    const near = pool.filter((a) => {
+    const exact = pool.filter((a) => a.selector === selector);
+    const loose = exact.length ? exact : pool.filter((a) => selectorMatches(a.selector, selector));
+    if (loose.length) pool = loose;
+    else if (timeMs != null) pool = activeAnimationsAt(pool, timeMs);
+    else pool = [];
+  } else if (timeMs != null) {
+    const active = activeAnimationsAt(pool, timeMs);
+    pool = active.length ? active : pool.filter((a) => {
       const [s, e] = activeWindow(a);
       return timeMs >= s - 150 && timeMs <= e + 150;
     });
-    if (near.length) return near;
   }
-  return selector ? pool : [];
+  const all = pool;
+  const shown = pool.slice(0, MAX_ANIMS_PER_ISSUE);
+  const total = pin?.measured?.length ? Math.max(input.animations.length, pool.length) : input.animations.length;
+  return { shown, rest: Math.max(0, total - shown.length), all };
 }
 
 function phaseFromTime(timeMs: number | null, anims: AnimationInfo[]): Phase {
@@ -130,7 +161,11 @@ export interface CodeHit {
 }
 
 export function findCodeHits(files: Record<string, string>, selector: string | null, max = 12): CodeHit[] {
+  const literals = selector ? (selector.match(/[.#][\w-]+/g) ?? []).map((l) => l.slice(1)) : [];
+  const literalRes = literals.map((l) => new RegExp(`(?<![\\w-])${l.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-])`, "i"));
   const tokens = selector ? nameTokens(selector) : [];
+  const lineMatches = (text: string) =>
+    literalRes.length ? literalRes.some((r) => r.test(text)) : tokens.some((t) => text.toLowerCase().includes(t));
   const hits: CodeHit[] = [];
   for (const [file, src] of Object.entries(files)) {
     const lines = src.split("\n");
@@ -141,14 +176,15 @@ export function findCodeHits(files: Record<string, string>, selector: string | n
       hits.push({ file, line: i + 1, text: trimmed });
     });
   }
-  if (!tokens.length) return hits.slice(0, max);
+  if (!tokens.length && !literalRes.length) return hits.slice(0, max);
   // Prefer lines in a window around a selector-token mention, else global hits.
   const near: CodeHit[] = [];
   for (const [file, src] of Object.entries(files)) {
     const lines = src.split("\n");
     lines.forEach((text, i) => {
-      if (!tokens.some((t) => text.toLowerCase().includes(t))) return;
-      for (let j = Math.max(0, i - 6); j <= Math.min(lines.length - 1, i + 12); j++) {
+      if (!lineMatches(text)) return;
+      for (let j = Math.max(0, i - 1); j <= Math.min(lines.length - 1, i + 4); j++) {
+        if (j > i && /^\s*\}/.test(lines[j])) break; // stay inside the rule/block that matched
         if (CODE_KEY_RE.test(lines[j]) && lines[j].trim().length <= 200) {
           near.push({ file, line: j + 1, text: lines[j].trim() });
         }
@@ -167,7 +203,10 @@ export function findCodeHits(files: Record<string, string>, selector: string | n
 
 // ---------- issue building ----------
 
-function suggestFor(matches: VocabMatch[], anims: AnimationInfo[]): { target: string; change: string } {
+/** glossary entry id -> issue number that already carries its advice. */
+type SeenAdvice = Map<string, number>;
+
+function suggestFor(matches: VocabMatch[], anims: AnimationInfo[], seen: SeenAdvice, issueNo: number): { target: string; change: string } {
   if (!matches.length) {
     return {
       target: "Behaviour described in the note; no glossary term recognised, so no numeric target is proposed.",
@@ -178,13 +217,20 @@ function suggestFor(matches: VocabMatch[], anims: AnimationInfo[]): { target: st
   const changes: string[] = [];
   for (const { entry, hits } of matches) {
     targets.push(`"${hits[0]}" -> ${entry.meaning}`);
-    let c = `${entry.direction}`;
-    const tools = [entry.css && `CSS: ${entry.css}`, entry.gsap && `GSAP: ${entry.gsap}`, entry.motion && `Motion: ${entry.motion}`].filter(Boolean);
-    if (tools.length) c += ` Suggested (not measured): ${tools.join(" | ")}.`;
+    const prior = seen.get(entry.id);
+    let c: string;
+    if (prior != null) {
+      c = `Same "${hits[0]}" fix as issue ${prior}; apply those values here.`;
+    } else {
+      seen.set(entry.id, issueNo);
+      c = `${entry.direction}`;
+      const tools = [entry.css && `CSS: ${entry.css}`, entry.gsap && `GSAP: ${entry.gsap}`, entry.motion && `Motion: ${entry.motion}`].filter(Boolean);
+      if (tools.length) c += ` Suggested (not measured): ${tools.join(" | ")}.`;
+    }
     // Tie suggestions to measured facts where we can.
     if (entry.id === "overshoot") {
       const over = anims.filter((a) => bezierOvershoots(a.easing));
-      if (over.length) c += ` Measured easing ${over.map((a) => `"${a.easing}"`).join(", ")} overshoots by construction; this is the likely source.`;
+      if (over.length) c += ` Measured easing ${over.map((a) => `"${a.easing}"`).join(", ")} overshoots by construction (likely source).`;
     }
     if (entry.id === "sluggish" || entry.id === "floaty") {
       const long = anims.filter((a) => a.durationMs > 500);
@@ -201,9 +247,12 @@ function suggestFor(matches: VocabMatch[], anims: AnimationInfo[]): { target: st
   return { target: targets.join("; "), change: changes.join(" ") };
 }
 
-function currentValuesText(anims: AnimationInfo[]): string {
-  if (!anims.length) return "No measured values available for this moment.";
-  return anims.map(describeAnimation).join("; ");
+function currentValuesText(anims: AnimationInfo[], rest: number): string {
+  if (!anims.length) {
+    return rest ? `No measured animation matches this moment (+${rest} other measured animations, none relevant).` : "No measured values available for this moment.";
+  }
+  const base = anims.map(describeAnimation).join("; ");
+  return rest ? `${base} (+${rest} other measured animation${rest === 1 ? "" : "s"} not shown)` : base;
 }
 
 function buildIssue(opts: {
@@ -211,16 +260,19 @@ function buildIssue(opts: {
   selector: string | null;
   text: string;
   anims: AnimationInfo[];
+  rest: number;
   phase: Phase;
+  seen: SeenAdvice;
+  issueNo: number;
 }): BriefIssue {
   const matches = detectVocabulary(opts.text);
-  const { target, change } = suggestFor(matches, opts.anims);
-  const phaseNote = opts.phase === "unknown" ? "" : ` (${opts.phase} the main motion)`;
+  const { target, change } = suggestFor(matches, opts.anims, opts.seen, opts.issueNo);
+  const phaseNote = opts.phase === "unknown" || opts.phase === "during" ? "" : ` (${opts.phase} the main motion)`;
   return {
     timeMs: opts.timeMs,
     selector: opts.selector,
     problem: `${opts.text.trim()}${phaseNote}`,
-    currentValues: currentValuesText(opts.anims),
+    currentValues: currentValuesText(opts.anims, opts.rest),
     target,
     suggestedChange: change,
   };
@@ -230,16 +282,24 @@ function buildIssue(opts: {
 
 const fmtTime = (ms: number | null) => (ms == null ? "unspecified time" : `${(ms / 1000).toFixed(2)}s`);
 
+interface Draft {
+  timeMs: number | null;
+  selector: string | null;
+  text: string;
+  found: ReturnType<typeof animationsFor>;
+  phase: Phase;
+}
+
 export function buildHeuristicBrief(input: BriefInput): BriefOutput {
-  const issues: BriefIssue[] = [];
+  const drafts: Draft[] = [];
   const pins = [...input.pins].sort((a, b) => a.timeMs - b.timeMs);
   const covered: string[] = [];
 
   for (const pin of pins) {
-    const anims = animationsFor(pin.timeMs, pin.selector, input, pin);
+    const found = animationsFor(pin.timeMs, pin.selector, input, pin);
     const cuePhase = phaseFromCue(pin.text);
-    const phase = cuePhase !== "unknown" ? cuePhase : phaseFromTime(pin.timeMs, anims);
-    issues.push(buildIssue({ timeMs: pin.timeMs, selector: pin.selector, text: pin.text, anims, phase }));
+    const phase = cuePhase !== "unknown" ? cuePhase : phaseFromTime(pin.timeMs, found.all);
+    drafts.push({ timeMs: pin.timeMs, selector: pin.selector, text: pin.text, found, phase });
     covered.push(pin.text.toLowerCase());
   }
 
@@ -251,19 +311,23 @@ export function buildHeuristicBrief(input: BriefInput): BriefOutput {
     const explicitTime = extractTimeMs(sentence);
     if (!matches.length && explicitTime == null) continue;
     const selector = sentenceSelector(sentence, input);
-    const anims = animationsFor(explicitTime, selector, input);
+    const found = animationsFor(explicitTime, selector, input);
     const cuePhase = phaseFromCue(sentence);
-    const phase = cuePhase !== "unknown" ? cuePhase : phaseFromTime(explicitTime, anims);
-    issues.push(buildIssue({ timeMs: explicitTime, selector, text: sentence, anims, phase }));
+    const phase = cuePhase !== "unknown" ? cuePhase : phaseFromTime(explicitTime, found.all);
+    drafts.push({ timeMs: explicitTime, selector, text: sentence, found, phase });
   }
 
-  issues.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity));
+  drafts.sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity));
+  const seen: SeenAdvice = new Map();
+  const issues: BriefIssue[] = drafts.map((d, i) =>
+    buildIssue({ timeMs: d.timeMs, selector: d.selector, text: d.text, anims: d.found.shown, rest: d.found.rest, phase: d.phase, seen, issueNo: i + 1 }),
+  );
 
   const goal = input.goal?.trim();
   const summary = issues.length
     ? `${issues.length} motion issue${issues.length === 1 ? "" : "s"} to fix in ${input.componentName}` +
       (goal ? `, goal: ${goal}` : "") +
-      `. Built without a language model from ${pins.length} pin${pins.length === 1 ? "" : "s"} and the narration.`
+      `. Built offline (no model) from ${pins.length} pin${pins.length === 1 ? "" : "s"} and the narration.`
     : `No specific motion issues could be extracted for ${input.componentName}; add pins or describe the problem with motion words (for example "overshoots", "too slow", "jittery").`;
 
   const constraints = [...FIXED_CONSTRAINTS];
@@ -284,37 +348,42 @@ function renderPrompt(input: BriefInput, summary: string, issues: BriefIssue[], 
   const out: string[] = [];
   out.push(`# Fix motion in \`${input.componentName}\``, "");
   if (input.goal?.trim()) out.push(`Goal: ${input.goal.trim()}`, "");
-  out.push(summary, "");
+  out.push(summary.replace(/\. Built offline.*$/, "."), "");
 
   if (issues.length) {
     out.push("## Issues", "");
+    const shownCode = new Set<string>();
     issues.forEach((iss, i) => {
       out.push(`### ${i + 1}. ${fmtTime(iss.timeMs)}${iss.selector ? ` on \`${iss.selector}\`` : ""}`);
       out.push(`- Problem: ${iss.problem}`);
       out.push(`- Current (measured): ${iss.currentValues}`);
       out.push(`- Wanted: ${iss.target}`);
       out.push(`- Change: ${iss.suggestedChange}`);
-      const hits = findCodeHits(input.files, iss.selector, 6);
+      const hits = findCodeHits(input.files, iss.selector, 3).filter((h) => !shownCode.has(`${h.file}:${h.line}`));
       if (hits.length) {
         out.push("- Relevant code:");
-        hits.forEach((h) => out.push(`  - ${h.file}:${h.line}  \`${h.text}\``));
+        hits.forEach((h) => {
+          shownCode.add(`${h.file}:${h.line}`);
+          out.push(`  - ${h.file}:${h.line}  \`${h.text}\``);
+        });
       }
       out.push("");
     });
   }
 
-  if (input.animations.length) {
-    out.push("## All measured animations", "");
-    input.animations.forEach((a) => out.push(`- ${a.selector ?? "(no selector)"}: ${describeAnimation(a)}`));
-    out.push("");
-  }
-
   const raw = input.narration.trim();
-  if (raw) {
-    out.push("## Original narration (verbatim, for context)", "", raw.length > 2000 ? `${raw.slice(0, 2000)}...` : raw, "");
+  if (raw && !narrationIsCovered(raw, input.pins)) {
+    out.push("## Original narration (for context)", "", raw.length > 800 ? `${raw.slice(0, 800)}...` : raw, "");
   }
 
   out.push("## Constraints", "", ...constraints.map((c) => `- ${c}`), "");
-  out.push("## Deliverable", "", "Edit the component so each issue is resolved, then list the old and new value for every property you changed.");
+  out.push("## Deliverable", "Fix each issue in the component, then list old and new values for every property you changed.");
   return out.join("\n");
+}
+
+/** True when every narration sentence already appears in a pin note. */
+function narrationIsCovered(narration: string, pins: Pin[]): boolean {
+  const texts = pins.map((p) => p.text.toLowerCase());
+  const sentences = splitSentences(narration);
+  return sentences.length > 0 && sentences.every((x) => texts.some((t) => t.includes(x.toLowerCase()) || x.toLowerCase().includes(t)));
 }

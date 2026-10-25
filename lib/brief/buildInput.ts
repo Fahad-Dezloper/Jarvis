@@ -2,7 +2,7 @@ import { LIMITS } from "./schema";
 import type { AnimationInfo, BriefInput, Pin } from "@/lib/types";
 
 /** The API schema only takes finite numbers; an endless loop is sent as a very large count. */
-const ENDLESS = 999_999;
+export const ENDLESS_ITERATIONS = 999_999;
 
 function cleanAnimation(a: AnimationInfo): AnimationInfo {
   return {
@@ -13,7 +13,7 @@ function cleanAnimation(a: AnimationInfo): AnimationInfo {
     easing: a.easing.slice(0, 300),
     durationMs: Number.isFinite(a.durationMs) ? a.durationMs : 0,
     delayMs: Number.isFinite(a.delayMs) ? a.delayMs : 0,
-    iterations: Number.isFinite(a.iterations) ? a.iterations : ENDLESS,
+    iterations: Number.isFinite(a.iterations) ? a.iterations : ENDLESS_ITERATIONS,
     properties: a.properties.slice(0, 50).map((p) => p.slice(0, 100)),
   };
 }

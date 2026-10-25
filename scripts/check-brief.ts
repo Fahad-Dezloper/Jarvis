@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { detectVocabulary } from "../lib/brief/vocabulary";
 import { buildHeuristicBrief, extractTimeMs, splitSentences } from "../lib/brief/heuristic";
+import { buildBriefInput } from "../lib/brief/buildInput";
+import { buildBriefMarkdown } from "../lib/send/markdown";
 import { briefInputSchema, briefOutputSchema } from "../lib/brief/schema";
 import type { AnimationInfo, BriefInput } from "../lib/types";
 
@@ -72,6 +74,63 @@ assert.deepEqual(brief.issues.map((i) => i.timeMs).filter((t) => t != null), [..
 assert.ok(brief.prompt.includes("Hero.css:2"), "cites code lines");
 assert.ok(/do not change unrelated behaviour/i.test(brief.constraints.join(" ")));
 assert.ok(brief.prompt.includes("Make the intro feel calm"));
+
+// Pulse card mirror: 3 pins at the same time, 3 CSS animations (one endless)
+const pulseAnims: AnimationInfo[] = [
+  { id: "c1", kind: "css", label: "pulse-in on article.pulse-card", selector: "article.pulse-card", durationMs: 700, delayMs: 0, easing: "cubic-bezier(0.34, 1.56, 0.64, 1)", iterations: 1, properties: ["transform", "opacity"] },
+  { id: "c2", kind: "css", label: "icon-spin on div.pulse-card__icon", selector: "div.pulse-card__icon", durationMs: 1200, delayMs: 0, easing: "linear", iterations: 1, properties: ["transform"] },
+  { id: "c3", kind: "css", label: "glow on i", selector: "i", durationMs: 1500, delayMs: 200, easing: "ease-in-out", iterations: Infinity, properties: ["opacity", "box-shadow"] },
+];
+const pulseCss = [
+  ".pulse-card {", "  animation: pulse-in 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both;", "}",
+  ".pulse-card__icon {", "  animation: icon-spin 1200ms linear;", "}",
+  ".pulse-card i {", "  animation: glow 1500ms ease-in-out 200ms infinite;", "}",
+].join("\n");
+const pulseInput = buildBriefInput({
+  componentName: "PulseCard",
+  files: { "styles.css": pulseCss, "Pulse.tsx": "export default function Pulse() { return <article className=\"pulse-card\"><div className=\"pulse-card__icon\"><i /></div></article>; }" },
+  animations: pulseAnims,
+  narration: "The card overshoots and snaps back. The icon spin feels stiff and robotic. The glow is jittery and sluggish.",
+  pins: [
+    { id: "q1", timeMs: 600, selector: "article.pulse-card", text: "the card overshoots and snaps back" },
+    { id: "q2", timeMs: 600, selector: "div.pulse-card__icon", text: "the icon spin feels stiff and robotic" },
+    { id: "q3", timeMs: 600, selector: "i", text: "the glow is jittery and sluggish" },
+  ],
+});
+assert.ok(pulseInput.animations.some((a) => a.iterations >= 999_999), "buildInput maps endless to the sentinel");
+const pulse = buildHeuristicBrief(pulseInput);
+console.log(`pulse prompt length: ${pulse.prompt.length}`); if (process.env.SHOW) console.log(pulse.prompt);
+assert.ok(pulse.prompt.length < 3_600, `3-pin prompt too long: ${pulse.prompt.length}`);
+assert.ok(briefOutputSchema.safeParse(pulse).success);
+assert.equal(pulse.source, "heuristic");
+const allText = JSON.stringify(pulse) + buildBriefMarkdown(pulse, { componentName: "PulseCard" });
+assert.ok(!/999999|999,999/.test(allText), "sentinel never reaches user-facing text");
+assert.ok(/infinite/.test(pulse.issues[2].currentValues), "endless loop rendered as infinite");
+// relevance: each issue lists its own selector's animation first and caps the rest
+const card = pulse.issues.find((i) => i.selector === "article.pulse-card")!;
+assert.ok(card.currentValues.includes("pulse-in") && !card.currentValues.includes("icon-spin") && !card.currentValues.includes("glow"), "card issue lists only its own animation");
+assert.ok(/700ms/.test(card.currentValues) && /cubic-bezier\(0\.34, 1\.56, 0\.64, 1\)/.test(card.currentValues), "keeps measured values");
+const icon = pulse.issues.find((i) => i.selector === "div.pulse-card__icon")!;
+assert.ok(icon.currentValues.includes("icon-spin") && !icon.currentValues.includes("pulse-in"));
+assert.ok(/\+2 other/.test(card.currentValues), "one-line count of the rest");
+// glossary advice is stated once
+const dup = buildHeuristicBrief({
+  ...pulseInput,
+  narration: "",
+  pins: [
+    { id: "d1", timeMs: 600, selector: "article.pulse-card", text: "the card overshoots" },
+    { id: "d2", timeMs: 900, selector: "div.pulse-card__icon", text: "the icon overshoots too" },
+  ],
+});
+assert.equal((dup.prompt.match(/Suggested \(not measured\)/g) ?? []).length, 1, "repeated glossary advice is stated once");
+assert.ok(/Same "overshoots" fix as issue 1/.test(dup.issues[1].suggestedChange));
+assert.ok(!pulse.prompt.includes("## All measured animations"));
+assert.ok(/deliverable/i.test(pulse.prompt) && /constraints/i.test(pulse.prompt));
+// an unrelated selector falls back to animations active at the pin time, capped at 3
+const manyAnims: AnimationInfo[] = Array.from({ length: 6 }, (_, k) => ({ ...logoAnim, id: `m${k}`, label: `anim${k}`, selector: `.m${k}` }));
+const capped = buildHeuristicBrief({ componentName: "M", files: {}, animations: manyAnims, narration: "", pins: [{ id: "z", timeMs: 100, selector: null, text: "it overshoots" }] });
+assert.equal((capped.issues[0].currentValues.match(/anim\d/g) ?? []).length, 3);
+assert.ok(/\+3 other/.test(capped.issues[0].currentValues));
 
 // empty input still yields a valid, honest brief
 const empty = buildHeuristicBrief({ componentName: "X", files: {}, animations: [], narration: "", pins: [] });
