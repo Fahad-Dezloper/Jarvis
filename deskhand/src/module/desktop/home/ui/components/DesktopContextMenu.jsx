@@ -597,8 +597,7 @@ const DesktopContextMenu = ({
               >
                 {[
                   { label: "Projects", action: onOpenProjects },
-                  { label: "Contact", action: () => onOpenApp("contact") },
-                  { label: "Resume", action: () => onOpenApp("resume") },
+                  { label: "Notes", action: () => onOpenApp("notes") },
                 ].map(({ label, action }) => (
                   <button
                     key={label}

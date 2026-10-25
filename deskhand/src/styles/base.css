@@ -64,8 +64,3 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (max-width: 767px) {
-  body {
-    background-image: url("/wallpapers/mobile/mobile-wallpaper.webp") !important;
-  }
-}

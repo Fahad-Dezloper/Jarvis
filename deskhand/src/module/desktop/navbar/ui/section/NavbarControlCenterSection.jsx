@@ -1,4 +1,4 @@
-import { navIcons, GITHUB_USERNAME, GITHUB_PROFILE, locations } from "@constants";
+import { navIcons, locations } from "@constants";
 import NavbarBatteryMenu from "../components/NavbarBatteryMenu";
 import NavbarDateTime from "../components/NavbarDateTime";
 import NavbarControlCenter from "../components/NavbarControlCenter";
@@ -42,39 +42,19 @@ const NavbarControlCenterSection = ({
   const setActiveLocation = useLocationStore((state) => state.setActiveLocation);
   const [mounted, setMounted] = useState(false);
 
-  const [profile, setProfile] = useState({
-    name: "Kuldeep Rajput",
+  const profile = {
+    name: "Guest",
     avatar_url: null,
-    login: GITHUB_USERNAME,
-    email: `${GITHUB_USERNAME}@users.noreply.github.com`,
-    bio: "Full Stack Developer",
-    location: "India",
-    public_repos: 15,
-    followers: 45,
-  });
+    login: "guest",
+    bio: "Deskhand guest session",
+    location: "Browser",
+  };
 
   const [currentUserMode, setCurrentUserMode] = useState("admin"); // "admin" | "guest"
   const [activeSubTab, setActiveSubTab] = useState("apple_id"); // "apple_id" | "icloud" | "media" | "guest" | "session"
 
   useEffect(() => {
     setMounted(true);
-    fetch(`https://api.github.com/users/${GITHUB_USERNAME}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.login) {
-          setProfile({
-            name: data.name || "Kuldeep Rajput",
-            avatar_url: data.avatar_url,
-            login: data.login,
-            email: data.email || `${data.login}@users.noreply.github.com`,
-            bio: data.bio || "Full Stack Developer",
-            location: data.location || "India",
-            public_repos: data.public_repos || 15,
-            followers: data.followers || 45,
-          });
-        }
-      })
-      .catch((err) => console.error("Error fetching user profile:", err));
   }, []);
 
   const [activeMenu, setActiveMenu] = useState(null); // 'wifi' | 'bluetooth' | 'user' | 'battery' | 'spotlight' | 'control' | null
@@ -88,7 +68,7 @@ const NavbarControlCenterSection = ({
   const wifiNetworksList = [
     { name: "Home Network", locked: true, strength: "strong" },
     { name: "Coffee Shop 5G", locked: true, strength: "medium" },
-    { name: "iPhone (Kuldeep)", locked: true, strength: "strong" },
+    { name: "Guest Hotspot", locked: true, strength: "strong" },
     { name: "Airport Free WiFi", locked: false, strength: "weak" },
   ];
 
@@ -199,7 +179,7 @@ const NavbarControlCenterSection = ({
       key: "finder",
       image: "/system/icons/files/folder.webp",
       icon: "💻",
-      desc: "View Portfolio Projects",
+      desc: "Browse files and folders",
     },
     {
       name: "VS Code",
@@ -235,14 +215,7 @@ const NavbarControlCenterSection = ({
       key: "settings",
       image: "settings.webp",
       icon: "⚙️",
-      desc: "Portfolio System Configuration",
-    },
-    {
-      name: "Contact Form",
-      key: "contact",
-      image: "contact.webp",
-      icon: "✉️",
-      desc: "Get In Touch",
+      desc: "System Configuration",
     },
     {
       name: "Gallery",
@@ -259,35 +232,6 @@ const NavbarControlCenterSection = ({
       desc: "Calendar & Schedule Planner",
     },
     {
-      name: "App Store",
-      key: "appstore",
-      image: "appstore.webp",
-      icon: "🛍️",
-      desc: "Search & Install Applications",
-    },
-    {
-      name: "Postman",
-      key: "postman",
-      image: "postman.webp",
-      icon: "🚀",
-      desc: "API Development & Testing Workspace",
-    },
-    {
-      name: "Telegram",
-      key: "telegram",
-      image: "telegram.webp",
-      icon: "💬",
-      desc: "Cloud Messaging & Chat",
-    },
-    { name: "Maps", key: "map", image: "map.webp", icon: "🗺️", desc: "World Maps & Navigation" },
-    {
-      name: "Font Book",
-      key: "font",
-      image: "font.webp",
-      icon: "🔤",
-      desc: "System Fonts Catalogue",
-    },
-    {
       name: "Weather Forecast",
       key: "weather",
       image: "weather.webp",
@@ -300,20 +244,6 @@ const NavbarControlCenterSection = ({
       image: "notes.webp",
       icon: "📝",
       desc: "Quick Notes Manager",
-    },
-    {
-      name: "FaceTime",
-      key: "call",
-      image: "call.webp",
-      icon: "📹",
-      desc: "Video and audio calls",
-    },
-    {
-      name: "Messages",
-      key: "messages",
-      image: "message.webp",
-      icon: "💬",
-      desc: "Text messages and conversations",
     },
     {
       name: "Trash",
@@ -563,9 +493,8 @@ const NavbarControlCenterSection = ({
                     USER PROFILE
                   </div>
                   {[
-                    { id: "apple_id", label: "Apple ID", icon: <User size={13} /> },
+                    { id: "apple_id", label: "Account", icon: <User size={13} /> },
                     { id: "icloud", label: "iCloud", icon: <Cloud size={13} /> },
-                    { id: "media", label: "Media", icon: <ShoppingBag size={13} /> },
                     { id: "guest", label: "Guest User", icon: <Users size={13} /> },
                     { id: "session", label: "Session Control", icon: <Lock size={13} /> },
                   ].map((subTab) => (
@@ -599,21 +528,9 @@ const NavbarControlCenterSection = ({
                     <div className="flex flex-col h-full justify-between animate-in fade-in slide-in-from-right-1 duration-200">
                       {/* Minimal Header */}
                       <div className="flex items-center gap-3">
-                        {profile.avatar_url ? (
-                          <img
-                            src={
-                              currentUserMode === "admin"
-                                ? profile.avatar_url
-                                : "/contacts/avatars/kuldeep.webp"
-                            }
-                            className="w-11 h-11 rounded-full border border-white/20 shadow-md shrink-0 object-cover"
-                            alt="Profile Avatar"
-                          />
-                        ) : (
-                          <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-[18px] text-white shadow-md shrink-0">
-                            {currentUserMode === "admin" ? profile.name[0] : "G"}
-                          </div>
-                        )}
+                        <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-[18px] text-white shadow-md shrink-0">
+                          G
+                        </div>
                         <div className="flex flex-col min-w-0">
                           <span className="font-bold text-[14px] text-white/95 leading-tight truncate">
                             {currentUserMode === "admin" ? profile.name : "Guest User"}
@@ -631,7 +548,7 @@ const NavbarControlCenterSection = ({
                         <Settings size={14} className="text-white/40 shrink-0 mt-0.5" />
                         {currentUserMode === "admin" ? (
                           <span className="block font-medium">
-                            Full Stack Developer | Building beautiful, premium web solutions.
+                            Welcome to Deskhand. Hold Fn, speak, and your desktop obeys.
                           </span>
                         ) : (
                           <span>
@@ -641,30 +558,13 @@ const NavbarControlCenterSection = ({
                         )}
                       </div>
 
-                      {/* Clean stats row */}
-                      {currentUserMode === "admin" && (
-                        <div className="flex items-center gap-4 text-[11px] text-white/55 bg-white/5 border border-white/5 py-1.5 px-3 rounded-lg w-fit">
-                          <span>
-                            📦 <strong>{profile.public_repos}</strong> Repos
-                          </span>
-                          <span className="text-white/20">|</span>
-                          <span>
-                            👥 <strong>{profile.followers}</strong> Followers
-                          </span>
-                          <span className="text-white/20">|</span>
-                          <span>
-                            📍 <strong>{profile.location}</strong>
-                          </span>
-                        </div>
-                      )}
-
                       <div className="mt-4 pt-2.5 border-t border-white/10 flex">
                         <button
                           type="button"
                           className="flex-1 bg-white/10 hover:bg-white/15 active:bg-white/8 text-white rounded-lg py-1.5 px-3 text-[11px] font-medium transition-all text-center"
-                          onClick={() => handleLaunchApp("settings", { tab: "Apple ID" })}
+                          onClick={() => handleLaunchApp("settings")}
                         >
-                          Apple ID Settings...
+                          System Settings...
                         </button>
                       </div>
                     </div>
@@ -728,42 +628,6 @@ const NavbarControlCenterSection = ({
                     </div>
                   )}
 
-                  {activeSubTab === "media" && (
-                    <div className="flex flex-col h-full justify-between animate-in fade-in slide-in-from-right-1 duration-200">
-                      <div>
-                        <h4 className="text-[13px] font-bold text-white/95">Media & Sponsors</h4>
-                        <p className="text-[10px] text-white/50 mt-0.5">
-                          Active developer stack licenses
-                        </p>
-                      </div>
-
-                      <div className="bg-white/5 border border-white/5 p-3 rounded-xl my-2">
-                        <span className="text-[9px] text-white/40 block leading-tight font-bold tracking-wider uppercase">
-                          CURRENT PLAN
-                        </span>
-                        <span className="text-[12px] font-semibold text-white block mt-1">
-                          GitHub Pro & Developer Subscription
-                        </span>
-                        <p className="text-[10px] text-white/50 mt-1 leading-normal">
-                          Allows deployment of optimized sites and packages under custom domains.
-                        </p>
-                      </div>
-
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 mt-auto">
-                        <span className="text-[11px] text-white/80">Support Project</span>
-                        <button
-                          type="button"
-                          className="bg-[#007aff] hover:bg-[#007aff]/80 active:bg-[#007aff]/60 text-white rounded-lg py-1 px-3 text-[10px] font-semibold transition-all cursor-pointer"
-                          onClick={() =>
-                            window.open(`https://github.com/sponsors/${GITHUB_USERNAME}`, "_blank")
-                          }
-                        >
-                          💖 Sponsor
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
                   {activeSubTab === "guest" && (
                     <div className="flex flex-col h-full justify-between animate-in fade-in slide-in-from-right-1 duration-200">
                       <div className="text-center flex-1 flex flex-col items-center justify-center my-2">
@@ -795,7 +659,7 @@ const NavbarControlCenterSection = ({
                         >
                           {currentUserMode === "admin"
                             ? "Launch Guest Mode"
-                            : "Switch back to Admin (Kuldeep)"}
+                            : "Switch back to Admin"}
                         </button>
                       </div>
                     </div>
@@ -822,7 +686,7 @@ const NavbarControlCenterSection = ({
                             },
                           },
                           {
-                            label: "Log Out Developer...",
+                            label: "Log Out...",
                             meta: "⇧⌘Q",
                             onClick: () => {
                               setActiveMenu(null);

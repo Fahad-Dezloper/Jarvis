@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { locations } from "@constants";
+import { README_FILE } from "@constants/locations";
 import useLocationStore from "@store/location";
 import useWindowsStore from "@store/window";
 import { useGSAP } from "@gsap/react";
@@ -12,7 +13,8 @@ import DesktopContextMenu from "./DesktopContextMenu";
 import FolderRenameInput from "./FolderRenameInput";
 import useWidgetsStore from "@store/widgets";
 
-const projects = locations.work?.children ?? [];
+const README_DESKTOP_FILE = { ...README_FILE, id: "desktop-readme", windowPosition: "top-[35vh] left-6" };
+const projects = [...(locations.work?.children ?? []), README_DESKTOP_FILE];
 const desktopWallpapers = [
   { id: "wallpaper", label: "Wallpaper 1", src: "/wallpapers/wallpaper.webp" },
   { id: "wallpaper2", label: "Wallpaper 2", src: "/wallpapers/wallpaper2.webp" },
@@ -73,6 +75,10 @@ const Home = () => {
   };
 
   const handleOpenProjectFinder = (project) => {
+    if (project?.kind === "file") {
+      openWindow(`${project.fileType}file`, project);
+      return;
+    }
     setActiveLocation(project);
     openWindow("finder");
   };

@@ -1,1 +1,0 @@
-export { defaultNotes } from "./notesData";

@@ -39,7 +39,6 @@ const useWindowsStore = create(
       isShuffle: false,
       isRepeat: false,
     },
-    isSiriOpen: false,
     isAboutPortfolioOpen: false,
     systemSettings: {
       wifi: true,
@@ -79,11 +78,6 @@ const useWindowsStore = create(
     setMusicState: (musicData) =>
       set((state) => {
         state.music = { ...state.music, ...musicData };
-      }),
-
-    setSiriOpen: (isOpen) =>
-      set((state) => {
-        state.isSiriOpen = isOpen;
       }),
 
     setAboutPortfolioOpen: (isOpen) =>

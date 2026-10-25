@@ -3,26 +3,12 @@ const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERC
 const candidate =
   configuredSiteUrl || (vercelHost ? `https://${vercelHost}` : "http://localhost:3000");
 
-let parsedUrl;
-
+let origin = "http://localhost:3000";
 try {
-  parsedUrl = new URL(candidate);
+  origin = new URL(candidate).origin;
 } catch {
-  throw new Error("SITE_URL must be an absolute URL, such as https://your-site.example.com");
+  // fall back to localhost: the site URL only feeds metadataBase
 }
 
-if (
-  !["http:", "https:"].includes(parsedUrl.protocol) ||
-  parsedUrl.username ||
-  parsedUrl.password ||
-  parsedUrl.pathname !== "/" ||
-  parsedUrl.search ||
-  parsedUrl.hash ||
-  (configuredSiteUrl && process.env.NODE_ENV === "production" && parsedUrl.protocol !== "https:")
-) {
-  throw new Error("SITE_URL must be an HTTPS origin without a path, query, or fragment");
-}
-
-export const siteUrl = parsedUrl.origin;
-export const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
+export const siteUrl = origin;
 export const absoluteSiteUrl = (path = "/") => new URL(path, `${siteUrl}/`).toString();

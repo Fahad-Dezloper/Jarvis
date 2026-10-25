@@ -1,47 +1,18 @@
 import "../styles/index.css";
-import { EMAIL, GITHUB_PROFILE, LINKEDIN_URL, TWITTER_URL } from "@constants/env";
-import { OWNER_NAME, SITE_DESCRIPTION, SITE_NAME, pageMetadata } from "../lib/seo";
-import { absoluteSiteUrl, isPreviewDeployment, siteUrl } from "../lib/site-url";
-
-const sameAs = [GITHUB_PROFILE, LINKEDIN_URL, TWITTER_URL].filter(Boolean);
-const jsonLd = [
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "@id": absoluteSiteUrl("/#website"),
-    name: SITE_NAME,
-    url: siteUrl,
-    description: SITE_DESCRIPTION,
-    inLanguage: "en",
-    author: { "@id": absoluteSiteUrl("/#person") },
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "Person",
-    "@id": absoluteSiteUrl("/#person"),
-    name: OWNER_NAME,
-    url: siteUrl,
-    email: `mailto:${EMAIL}`,
-    jobTitle: "Full Stack Developer",
-    sameAs,
-  },
-];
+import { SITE_DESCRIPTION, SITE_NAME, pageMetadata } from "../lib/seo";
+import { siteUrl } from "../lib/site-url";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
   ...pageMetadata({}),
   applicationName: SITE_NAME,
+  description: SITE_DESCRIPTION,
   generator: "Next.js",
   referrer: "origin-when-cross-origin",
   title: {
     default: SITE_NAME,
-    template: `%s | ${OWNER_NAME}`,
+    template: `%s | ${SITE_NAME}`,
   },
-  authors: [{ name: OWNER_NAME, url: siteUrl }],
-  creator: OWNER_NAME,
-  publisher: OWNER_NAME,
-  category: "technology",
-  classification: "Portfolio",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -62,16 +33,11 @@ export const metadata = {
     address: false,
     telephone: false,
   },
+  // Not a public site: keep it out of search indexes.
   robots: {
-    index: !isPreviewDeployment,
-    follow: !isPreviewDeployment,
-    googleBot: {
-      index: !isPreviewDeployment,
-      follow: !isPreviewDeployment,
-      "max-video-preview": -1,
-      "max-image-preview": "large",
-      "max-snippet": -1,
-    },
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
   },
 };
 
@@ -89,16 +55,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning={true}>
       <head>
-        <link rel="preconnect" href="https://api.github.com" />
         <link rel="preconnect" href="https://api.jamendo.com" />
         <link rel="preconnect" href="https://prod-1.storage.jamendo.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://wttr.in" />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-          }}
-        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

@@ -13,16 +13,15 @@ const NavbarAppleMenu = ({
   const menuSections = [
     [
       {
-        label: "About This Mac",
+        label: "About Deskhand",
         action: "about",
       },
     ],
     [
       {
         label: "System Settings...",
-        onClick: () => openWindow("settings", { tab: "Apple ID", subPage: null }),
+        onClick: () => openWindow("settings", { tab: "General", subPage: null }),
       },
-      { label: "App Store...", onClick: () => openWindow("appstore") },
     ],
     [
       { label: "Recent Items", meta: "›", disabled: true },
@@ -30,7 +29,7 @@ const NavbarAppleMenu = ({
     ],
     [
       { label: "Lock Screen", meta: "⌃⌘Q", onClick: () => setIsAsleep(true) },
-      { label: "Log Out Kuldeep...", meta: "⇧⌘Q", onClick: () => setIsAsleep(true) },
+      { label: "Log Out Guest...", meta: "⇧⌘Q", onClick: () => setIsAsleep(true) },
     ],
   ];
 

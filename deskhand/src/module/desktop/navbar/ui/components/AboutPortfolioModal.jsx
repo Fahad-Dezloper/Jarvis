@@ -30,23 +30,21 @@ const AboutPortfolioModal = ({ show, onClose }) => {
 
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center mt-3 text-center">
-          <img
-            src="/contacts/avatars/kuldeep.webp"
-            alt="Kuldeep Rajput"
-            className="w-16 h-16 rounded-full object-cover drop-shadow-md border border-gray-200 select-none pointer-events-none"
-          />
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-sky-400 to-indigo-600 flex items-center justify-center text-white text-3xl font-bold drop-shadow-md select-none pointer-events-none">
+            D
+          </div>
           <h1 className="text-[15px] font-bold text-gray-900 mt-3 select-none leading-tight">
-            Kuldeep's Portfolio
+            Deskhand
           </h1>
           <p className="text-[10px] text-gray-500 font-semibold select-none mt-0.5">
-            Version 2.0 (Ventura Layout)
+            Voice-controlled desktop demo
           </p>
         </div>
 
         {/* Footer/Copyright */}
         <div className="text-center text-[8.5px] text-gray-400/90 leading-tight mb-2 select-none">
-          <p>Copyright © 2026 Kuldeep Rajput.</p>
-          <p>All rights reserved.</p>
+          <p>Desktop shell forked from macos-portfolio (MIT).</p>
+          <p>See README for credit.</p>
         </div>
       </div>
     </div>

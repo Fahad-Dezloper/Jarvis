@@ -2,8 +2,7 @@ export const photosLinks = [
   { id: 1, icon: "/system/icons/ui/gicon1.svg", title: "Library" },
   { id: 2, icon: "/system/icons/ui/gicon2.svg", title: "Memories" },
   { id: 3, icon: "/system/icons/files/file.svg", title: "Places" },
-  { id: 4, icon: "/system/icons/ui/gicon4.svg", title: "People" },
-  { id: 5, icon: "/system/icons/ui/gicon5.svg", title: "Favorites" },
+  { id: 4, icon: "/system/icons/ui/gicon5.svg", title: "Favorites" },
 ];
 
 export const gallery = [
@@ -20,8 +19,4 @@ export const gallery = [
   { id: 11, img: "/gallery/places/2.webp", category: "Places" },
   { id: 12, img: "/gallery/places/3.webp", category: "Places" },
   { id: 13, img: "/gallery/places/4.webp", category: "Places" },
-  { id: 14, img: "/gallery/people/1.webp", category: "People" },
-  { id: 15, img: "/gallery/people/2.webp", category: "People" },
-  { id: 16, img: "/gallery/people/3.webp", category: "People" },
-  { id: 17, img: "/gallery/people/4.webp", category: "People" },
 ];

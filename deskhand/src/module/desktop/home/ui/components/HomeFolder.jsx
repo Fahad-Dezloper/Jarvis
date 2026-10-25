@@ -20,7 +20,7 @@ const HomeFolder = ({ project, displayName, isEditing, onRename, onClick, onCont
     >
       <div className="w-[62px] h-[52px] flex items-center justify-center pointer-events-none">
         <OptimizedImage
-          src="/system/icons/files/folder.webp"
+          src={project.kind === "file" && project.icon ? project.icon : "/system/icons/files/folder.webp"}
           alt={currentName}
           width={62}
           height={52}

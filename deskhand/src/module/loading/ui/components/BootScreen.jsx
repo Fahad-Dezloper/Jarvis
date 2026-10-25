@@ -46,17 +46,17 @@ const BootScreen = ({ onComplete, isMobile: propIsMobile }) => {
       tl.to(
         {},
         {
-          duration: 2.5,
-          delay: 0.3,
+          duration: 1.2,
+          delay: 0.2,
         },
       );
     } else {
       // Simulate the Mac boot progress bar
       tl.to(progressRef.current, {
         width: "100%",
-        duration: 2.2,
+        duration: 1.0,
         ease: "power1.inOut",
-        delay: 0.4,
+        delay: 0.2,
       });
     }
   }, [isMobile]);
