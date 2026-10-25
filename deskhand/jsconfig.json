@@ -8,7 +8,8 @@
       "@constants": ["src/constants/index.js"],
       "@store/*": ["src/store/*"],
       "@hoc/*": ["src/hoc/*"],
-      "@module/*": ["src/module/*"]
+      "@module/*": ["src/module/*"],
+      "@deskhand/*": ["src/deskhand/*"]
     }
   }
 }
