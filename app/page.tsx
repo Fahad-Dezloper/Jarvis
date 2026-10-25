@@ -1,21 +1,10 @@
-import { Suspense } from "react";
-import Workbench from "@/components/workbench/Workbench";
-
-function WorkbenchFallback() {
-  return (
-    <div className="grid h-dvh place-items-center text-sm text-zinc-500">
-      <span className="animate-pulse">Loading workbench...</span>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
-    <main className="flex-1">
-      {/* Sandpack reads the clock while rendering, so it streams in behind Suspense. */}
-      <Suspense fallback={<WorkbenchFallback />}>
-        <Workbench />
-      </Suspense>
+    <main className="grid min-h-screen place-items-center px-6 text-center">
+      <div>
+        <h1 className="text-4xl font-semibold tracking-tight">Deskhand</h1>
+        <p className="mt-3 opacity-70">Say what you want. Your desktop does it.</p>
+      </div>
     </main>
   );
 }

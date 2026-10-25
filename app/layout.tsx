@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Motion Brief",
-  description: "Narrate an animation, pin it to the exact frame, and get a precise prompt for your AI coding agent.",
+  title: "Deskhand",
+  description: "Say what you want. Your desktop does it.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
