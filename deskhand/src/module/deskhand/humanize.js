@@ -52,7 +52,9 @@ function humanizeInvoke(action) {
     case "terminal.clear":
       return "Clearing the terminal";
     case "notes.append_note":
-      return `Adding to Notes: "${clip(args.text, 48)}"`;
+      return String(args.text ?? "").includes("{{clipboard}}")
+        ? "Saving the copied link to Notes"
+        : `Adding to Notes: "${clip(args.text, 48)}"`;
     case "notes.new_note":
       return args.title ? `Creating note "${clip(args.title, 40)}"` : "Creating a new note";
     case "browser.open_url":
