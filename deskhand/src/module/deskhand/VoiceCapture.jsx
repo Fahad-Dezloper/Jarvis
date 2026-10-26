@@ -21,6 +21,7 @@ export default function VoiceCapture() {
   // own (a terminal that auto-focuses, a search box that opens focused) never hold it.
   const intentUntil = useRef(0);
   const lastInput = useRef({ at: 0, chars: 0 });
+  const lastPaste = useRef({ at: 0, chars: 0, kinds: "" });
   const commits = useRef(0);
   const [debug, setDebug] = useState(null); // null = off; object = live readout (add ?debug to the URL)
   const hasIntent = () => Date.now() < intentUntil.current;
@@ -123,6 +124,34 @@ export default function VoiceCapture() {
       el.addEventListener(type, fn);
       return [type, fn];
     });
+    // Dictation tools paste via the clipboard and restore it right after. Read the text straight from the
+    // paste event (rather than trusting the browser to insert it), and say so when a paste arrives empty.
+    const onPaste = (e) => {
+      let text = "";
+      let kinds = "";
+      try {
+        text = e.clipboardData?.getData("text/plain") ?? "";
+        kinds = Array.from(e.clipboardData?.types ?? []).join(",");
+      } catch {
+        /* clipboard unreadable */
+      }
+      lastPaste.current = { at: Date.now(), chars: text.length, kinds };
+      if (text.trim()) {
+        e.preventDefault();
+        const cur = el.value.trim();
+        el.value = cur ? `${cur} ${text}` : text;
+        noteValue("paste");
+      } else {
+        console.warn(`[jarvis] empty paste (types: ${kinds || "none"}). The dictation tool pasted nothing.`);
+        useJarvisStore.setState((st) => ({
+          error: "That dictation arrived empty. Please say it again.",
+          ok: false,
+          cancelled: false,
+          resultSeq: st.resultSeq + 1,
+        }));
+      }
+    };
+    el.addEventListener("paste", onPaste, true);
     const poll = setInterval(() => {
       if (el.value !== seenValue.current) {
         eventCounts.current.poll = (eventCounts.current.poll || 0) + 1;
@@ -131,6 +160,7 @@ export default function VoiceCapture() {
     }, 100);
     return () => {
       handlers.forEach(([type, fn]) => el.removeEventListener(type, fn));
+      el.removeEventListener("paste", onPaste, true);
       clearInterval(poll);
     };
   }, [noteValue]);
@@ -267,6 +297,9 @@ export default function VoiceCapture() {
         via: lastSource.current,
         events: Object.entries(eventCounts.current).map(([k, v]) => `${k}:${v}`).join(" ") || "none yet",
         value: (ref.current?.value || "").length,
+        paste: lastPaste.current.at
+          ? `${((Date.now() - lastPaste.current.at) / 1000).toFixed(1)}s ago, ${lastPaste.current.chars} chars [${lastPaste.current.kinds || "no types"}]`
+          : "none yet",
       });
     }, 250);
     return () => clearInterval(t);
@@ -304,6 +337,7 @@ export default function VoiceCapture() {
           <div>engine busy: {String(debug.busy)} · typing in a field: {String(debug.intent)}</div>
           <div>arrived via: {debug.via} · field now holds {debug.value} chars</div>
           <div>events seen: {debug.events}</div>
+          <div>last paste: {debug.paste}</div>
         </div>
       )}
     <textarea
