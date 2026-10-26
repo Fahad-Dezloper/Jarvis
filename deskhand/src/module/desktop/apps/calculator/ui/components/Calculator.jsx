@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import WindowControls from "@components/WindowControls";
 import windowWrapper from "@hoc/windowWrapper";
 import useWindowsStore from "@store/window";
+import useCalcStore from "../../calcStore";
+import "../../handlers";
 import useCalculator from "../../hooks/useCalculator";
 import CalculatorDisplay from "./CalculatorDisplay";
 import CalculatorKeypad from "./CalculatorKeypad";
@@ -29,7 +31,15 @@ const Calculator = () => {
     inputDigit,
     inputDot,
     performOperation,
+    loadResult,
   } = useCalculator();
+
+  const stamp = useCalcStore((st) => st.stamp);
+  const caption = useCalcStore((st) => st.expr);
+  const result = useCalcStore((st) => st.result);
+  useEffect(() => {
+    if (stamp) loadResult(result);
+  }, [stamp]);
 
   return (
     <>
@@ -39,7 +49,11 @@ const Calculator = () => {
         </div>
         <div className="relative flex min-h-0 flex-1 items-center justify-center p-4 pt-2">
           <div className="flex w-full max-w-[340px] flex-col">
-            <CalculatorDisplay expression={expression} displayValue={displayValue} />
+            <CalculatorDisplay
+              expression={expression}
+              displayValue={displayValue}
+              caption={stamp && displayValue === result ? `${caption} =` : ""}
+            />
             <CalculatorKeypad
               displayValue={displayValue}
               operator={operator}

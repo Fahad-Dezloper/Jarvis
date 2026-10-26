@@ -12,6 +12,14 @@ export const HOME = "/home/guest";
 export const PROJECT = `${HOME}/orbit-todo`;
 export const BANNER_TITLE = "Claude Code (simulated for Orry v1)";
 
+import {
+  PROJECT_FILES,
+  PROJECT_SUMMARY,
+  READ_ORDER,
+  buildProjectTree,
+  findProjectFile,
+} from "../shared/orbitTodoProject.js";
+
 const ESC = "\x1b[";
 const paint = (code, s) => `${ESC}${code}m${s}${ESC}0m`;
 export const c = {
@@ -32,64 +40,7 @@ export const stripAnsi = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
 
 // ---------------------------------------------------------------- filesystem
 
-const PACKAGE_JSON = `{
-  "name": "orbit-todo",
-  "version": "0.3.1",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "vite": "^5.4.2",
-    "vitest": "^1.6.0"
-  }
-}`;
-
-const README = `# orbit-todo
-
-A tiny todo app: add tasks, tick them off, filter by status.
-Built with React and Vite, no backend, tasks live in localStorage.
-
-## Scripts
-
-- npm run dev    start the dev server on http://localhost:5173
-- npm test       run the unit tests
-- npm run build  production build into dist/`;
-
-const tree = {
-  home: {
-    guest: {
-      "orbit-todo": {
-        ".gitignore": "node_modules\ndist\n.env.local\n",
-        "package.json": PACKAGE_JSON,
-        "README.md": README,
-        src: {
-          "main.jsx":
-            "import React from 'react';\nimport { createRoot } from 'react-dom/client';\nimport App from './App.jsx';\nimport './styles.css';\n\ncreateRoot(document.getElementById('root')).render(<App />);\n",
-          "App.jsx":
-            "import { useState } from 'react';\nimport { formatDue } from './utils/format.js';\n\nexport default function App() {\n  const [todos, setTodos] = useState([]);\n  const [text, setText] = useState('');\n\n  const add = () => {\n    if (!text.trim()) return;\n    setTodos([...todos, { id: Date.now(), text, done: false }]);\n    setText('');\n  };\n\n  return (\n    <main className=\"app\">\n      <h1>Orbit Todo</h1>\n      <input value={text} onChange={(e) => setText(e.target.value)} />\n      <button onClick={add}>Add</button>\n      <ul>\n        {todos.map((t) => (\n          <li key={t.id}>{t.text} {formatDue(t.due)}</li>\n        ))}\n      </ul>\n    </main>\n  );\n}\n",
-          "styles.css":
-            ":root {\n  --bg: #ffffff;\n  --fg: #1c1c1e;\n  --accent: #6c5ce7;\n}\n\nbody {\n  margin: 0;\n  background: var(--bg);\n  color: var(--fg);\n  font-family: system-ui, sans-serif;\n}\n\n.app {\n  max-width: 480px;\n  margin: 4rem auto;\n}\n",
-          utils: {
-            "format.js":
-              "export function formatDue(due) {\n  if (!due) return '';\n  return new Date(due).toLocaleDateString();\n}\n",
-          },
-        },
-        tests: {
-          "format.test.js":
-            "import { describe, it, expect } from 'vitest';\nimport { formatDue } from '../src/utils/format.js';\n\ndescribe('formatDue', () => {\n  it('returns empty for no date', () => {\n    expect(formatDue()).toBe('');\n  });\n});\n",
-        },
-      },
-    },
-  },
-};
+const tree = { home: { guest: { "orbit-todo": buildProjectTree() } } };
 
 const isDir = (n) => n !== null && typeof n === "object";
 
@@ -223,14 +174,16 @@ function gitOutput(args) {
       ev(c.red("\tmodified:   src/styles.css")),
       ev(""),
       ev("Untracked files:"),
-      ev(c.red("\ttests/format.test.js")),
+      ev(c.red("\ttests/store.test.js")),
       ev(""),
       ev('no changes added to commit (use "git add" and/or "git commit -a")'),
     ];
   }
   if (sub === "log") {
     if (args.includes("--oneline")) {
-      return GIT_LOG.map(([h, m], i) => ev(`${c.yellow(h)}${i === 0 ? c.cyan(" (HEAD -> main, origin/main)") : ""} ${m}`));
+      return GIT_LOG.map(([h, m], i) =>
+        ev(`${c.yellow(h)}${i === 0 ? c.cyan(" (HEAD -> main, origin/main)") : ""} ${m}`),
+      );
     }
     return GIT_LOG.slice(0, 3).flatMap(([h, m]) => [
       ev(c.yellow(`commit ${h}e5f2b9c04d7a1138a6c2f0b7d1a9e3c4`)),
@@ -277,7 +230,7 @@ function testRun() {
     ev(` ${c.cyan(c.bold("RUN"))}  ${c.cyan("v1.6.0")} ${c.gray("~/orbit-todo")}`, 500),
     ev(""),
     ev(` ${c.green("✓")} tests/format.test.js ${c.gray("(4 tests)")} 4ms`, 450),
-    ev(` ${c.green("✓")} tests/todo.test.js ${c.gray("(6 tests)")} 9ms`, 350),
+    ev(` ${c.green("✓")} tests/store.test.js ${c.gray("(6 tests)")} 9ms`, 350),
     ev(""),
     ev(` ${c.bold("Test Files")}  ${c.green("2 passed")} (2)`, 250),
     ev(`      ${c.bold("Tests")}  ${c.green("10 passed")} (10)`),
@@ -364,10 +317,17 @@ export function looksLikeRequest(line) {
 
 function classify(req) {
   const r = req.toLowerCase();
-  if (/(explain|what|how|why|summari|overview|understand|walk me|tell me|\?)/.test(r)) return "explain";
+  if (
+    /(explain|what|how|why|summari|overview|understand|walk me|tell me|describe|\bread\b|look at|go through|tour|about|\?)/.test(
+      r,
+    ) &&
+    !/(add|fix|implement|create|refactor|rename)/.test(r)
+  )
+    return "explain";
   if (/(test|spec|coverage)/.test(r)) return "tests";
   if (/(fix|bug|error|crash|broken|fails?)/.test(r)) return "bugfix";
-  if (/(style|css|dark|theme|colou?r|button|layout|ui|design|toggle|responsive)/.test(r)) return "ui";
+  if (/(style|css|dark|theme|colou?r|button|layout|ui|design|toggle|responsive)/.test(r))
+    return "ui";
   return "feature";
 }
 
@@ -385,10 +345,11 @@ function claudeResponse(request) {
   ];
   const push = (text, delay = 400) => evs.push(ev(text, delay));
 
+  if (kind === "explain") return readProjectEvents(request);
+
   const reads = ["package.json", "src/App.jsx"];
   if (kind === "ui") reads.push("src/styles.css");
   if (kind === "tests" || kind === "bugfix") reads.push("src/utils/format.js");
-  if (kind === "explain") reads.splice(0, reads.length, "README.md", "package.json", "src/App.jsx");
 
   for (const f of reads) {
     push(`${TOOL("Read", f)}`, 380);
@@ -396,18 +357,14 @@ function claudeResponse(request) {
   }
   push("");
 
-  if (kind === "explain") {
-    push(`${c.green("●")} orbit-todo is a small React + Vite todo app.`, 500);
-    push(`  ${c.gray("-")} State lives in ${c.cyan("src/App.jsx")} (an array of todos and an input).`, 120);
-    push(`  ${c.gray("-")} Date formatting sits in ${c.cyan("src/utils/format.js")}.`, 120);
-    push(`  ${c.gray("-")} Run it with ${c.cyan("npm run dev")}, test with ${c.cyan("npm test")}.`, 120);
-    return evs;
-  }
-
   const plan = {
     tests: ["Add cases for formatDue edge inputs", "Run the suite to confirm they pass"],
     bugfix: ["Find the failing code path", "Patch it and guard the edge case", "Re-run tests"],
-    ui: ["Add the needed CSS variables", "Wire the change into App.jsx", "Check it in the dev server"],
+    ui: [
+      "Add the needed CSS variables",
+      "Wire the change into App.jsx",
+      "Check it in the dev server",
+    ],
     feature: ["Extend the state in App.jsx", "Update the markup and styles", "Run tests"],
   }[kind];
   push(`${c.orange("✻")} ${c.bold("Plan")}`, 300);
@@ -435,6 +392,67 @@ function claudeResponse(request) {
   push("");
   push(`${c.green("✓")} ${c.bold("Done.")} ${summaryFor(kind)}`, 300);
   push(c.gray("  (simulated: no files were actually changed)"), 80);
+  return evs;
+}
+
+/** Paths mentioned in a request ('src/store.js', 'App.jsx', 'the tests folder'); empty = whole project. */
+export function pathsFromRequest(request) {
+  const found = new Set();
+  const text = String(request || "");
+  for (const tok of text.split(/[\s,]+/)) {
+    const hit = tok && /[./]/.test(tok) ? findProjectFile(tok.replace(/[?.!]+$/, "")) : null;
+    if (hit) found.add(hit.path);
+  }
+  for (const dir of ["src/components", "src/utils", "tests"]) {
+    const name = dir.split("/").pop();
+    if (new RegExp("\\b" + name + "\\b", "i").test(text) && !found.size) {
+      for (const p of Object.keys(PROJECT_FILES)) if (p.startsWith(dir + "/")) found.add(p);
+    }
+  }
+  return READ_ORDER.concat(Object.keys(PROJECT_FILES)).filter(
+    (p, i, a) => found.has(p) && a.indexOf(p) === i,
+  );
+}
+
+/** Claude-Code-style agent trace: read the files (with short pauses), then explain. */
+export function readProjectEvents(request) {
+  const only = pathsFromRequest(request);
+  const files = only.length ? only : READ_ORDER.filter((p) => p in PROJECT_FILES);
+  const ask = String(request || "")
+    .trim()
+    .replace(/\s+/g, " ");
+  const evs = [
+    ev(""),
+    ev(`${c.boldOrange(">")} ${ask}`),
+    ev(""),
+    ev(`${c.orange("✻")} ${c.gray("Reading files...")}`, 350),
+  ];
+  for (const f of files) {
+    evs.push(ev(`${c.green("●")} ${c.bold("Reading")} ${c.cyan(f)}`, 170));
+    evs.push(
+      ev(
+        RESULT(
+          `${c.green("✓")} Read ${PROJECT_FILES[f].replace(/\n$/, "").split("\n").length} lines`,
+        ),
+        90,
+      ),
+    );
+  }
+  evs.push(ev(""));
+  if (only.length) {
+    evs.push(
+      ev(
+        `${c.green("●")} Read ${files.length} file${files.length === 1 ? "" : "s"}: ${files.join(", ")}`,
+        300,
+      ),
+    );
+  } else {
+    PROJECT_SUMMARY.forEach((line, i) =>
+      evs.push(
+        ev(i === 0 ? `${c.green("●")} ${line}` : `  ${c.gray("-")} ${line}`, i === 0 ? 350 : 140),
+      ),
+    );
+  }
   return evs;
 }
 
@@ -493,8 +511,14 @@ export function interpret(line, session = createSession(), now = new Date()) {
     case "cd": {
       const target = resolvePath(session.cwd, toks[0] || "~");
       const node = lookup(target);
-      if (node === undefined) return { events: [ev(c.red(`cd: no such file or directory: ${toks[0]}`))], serve: false };
-      if (!isDir(node)) return { events: [ev(c.red(`cd: not a directory: ${toks[0]}`))], serve: false };
+      if (node === undefined && /(^|\/)orbit-todo\/?$/.test(toks[0] || "")) {
+        session.cwd = PROJECT;
+        return { events: [], serve: false };
+      }
+      if (node === undefined)
+        return { events: [ev(c.red(`cd: no such file or directory: ${toks[0]}`))], serve: false };
+      if (!isDir(node))
+        return { events: [ev(c.red(`cd: not a directory: ${toks[0]}`))], serve: false };
       session.cwd = target;
       return { events: [], serve: false };
     }
@@ -507,15 +531,28 @@ export function interpret(line, session = createSession(), now = new Date()) {
       return { events: r.events, serve: !!r.serve };
     }
     case "node":
-      if (toks[0] === "-v" || toks[0] === "--version") return { events: [ev("v20.17.0")], serve: false };
-      return { events: [ev(c.gray("node: running scripts is not available in this simulation"))], serve: false };
+      if (toks[0] === "-v" || toks[0] === "--version")
+        return { events: [ev("v20.17.0")], serve: false };
+      return {
+        events: [ev(c.gray("node: running scripts is not available in this simulation"))],
+        serve: false,
+      };
     case "sudo":
-      return { events: [ev(c.red("guest is not in the sudoers file. This incident will be reported."))], serve: false };
+      return {
+        events: [ev(c.red("guest is not in the sudoers file. This incident will be reported."))],
+        serve: false,
+      };
     case "claude": {
       const arg = rest.join(" ").trim();
-      if (!arg) return { events: [...banner(session), ev(c.gray("Describe a task and press Enter."))], serve: false };
-      if (arg === "--version" || arg === "-v") return { events: [ev(`1.0.0 (${BANNER_TITLE})`)], serve: false };
-      if (arg === "--help" || arg === "-h" || arg === "/help") return { events: helpOutput(), serve: false };
+      if (!arg)
+        return {
+          events: [...banner(session), ev(c.gray("Describe a task and press Enter."))],
+          serve: false,
+        };
+      if (arg === "--version" || arg === "-v")
+        return { events: [ev(`1.0.0 (${BANNER_TITLE})`)], serve: false };
+      if (arg === "--help" || arg === "-h" || arg === "/help")
+        return { events: helpOutput(), serve: false };
       const request = arg.replace(/^(-p|--print)\s+/, "").replace(/^(["'])(.*)\1$/, "$2");
       return { events: claudeResponse(request), serve: false };
     }

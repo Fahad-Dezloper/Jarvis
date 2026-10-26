@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import WEATHER_DATA from "../data/weatherData";
 import { parseWttrResponse, generateWeatherData } from "../data/weatherUtils";
+import useWeatherStore from "../weatherStore";
+import "../handlers";
 
 const useWeather = () => {
   const apiBase = process.env.NEXT_PUBLIC_WEATHER_API_URL || "https://wttr.in";
@@ -141,6 +143,17 @@ const useWeather = () => {
       fetchCityWeather(city);
     });
   }, [fetchCityWeather]);
+
+  // A city looked up by voice (or earlier, before this window mounted).
+  const voiceStamp = useWeatherStore((st) => st.stamp);
+  useEffect(() => {
+    const w = useWeatherStore.getState().latest;
+    if (!w) return;
+    const generated = generateWeatherData(w.city, w.condition, `${w.tempC}°C`);
+    const key = w.city.toLowerCase().replace(/\s+/g, "");
+    setCitiesData((prev) => ({ ...prev, [key]: generated }));
+    setActiveCityId(key);
+  }, [voiceStamp]);
 
   const filteredCityKeys = Object.keys(citiesData).filter((key) => {
     const city = citiesData[key];

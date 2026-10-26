@@ -1,4 +1,6 @@
 import Calculator from "@module/desktop/apps/calculator/ui/view/CalculatorView";
+import Chrome from "@module/desktop/apps/chrome/ui/view/ChromeView";
+import Mail from "@module/desktop/apps/mail/ui/view/MailView";
 import Calendar from "@module/desktop/apps/calendar/ui/view/CalendarView";
 import Dock from "@module/desktop/dock/ui/view/DockView";
 import DockVisualizer from "./dock/ui/components/DockVisualizer";
@@ -85,7 +87,9 @@ const Desktop = () => {
       <DockVisualizer />
       <Dock />
       <Terminal />
+      <Chrome />
       <Safari />
+      <Mail />
       <Finder />
       <Text />
       <Image />

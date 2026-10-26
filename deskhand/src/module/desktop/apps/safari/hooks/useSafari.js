@@ -1,17 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import useWindowsStore from "@store/window";
 import "../../devBridge";
-import { registerHandlers, registerSummary } from "@deskhand/bridge";
 import { DEFAULT_BOOKMARKS, IFRAME_COMPATIBLE_SITES, MOCK_HISTORY } from "../data";
-import {
-  ARTIFACT_URL,
-  START_URL,
-  findMockPage,
-  isCurrentPageRef,
-  pickLink,
-  resolveTarget,
-} from "../data/pages";
-import { copyText } from "../clipboard";
+import { ARTIFACT_URL, START_URL, findMockPage } from "../data/pages";
+import { registerBrowserController } from "../../chrome/browserHandlers";
+import { titleForInternalUrl } from "../../chrome/browserStore";
+import { isInternalUrl } from "../../chrome/searchCore";
 
 // The browser opens on the built-in shared artifact; Back leads to the start page.
 const makeInitialTab = () => ({
@@ -24,7 +18,7 @@ const makeInitialTab = () => ({
 });
 
 const isIframeable = (url) => {
-  if (url.startsWith("safari://")) return true;
+  if (url.startsWith("safari://") || isInternalUrl(url)) return true;
   if (findMockPage(url)) return true;
   const urlLower = url.toLowerCase();
   if (urlLower.includes("wikipedia.org")) return true;
@@ -170,7 +164,9 @@ const useSafari = () => {
     let isRedirected = false;
     const mockHit = findMockPage(targetUrl);
 
-    if (mockHit) {
+    if (isInternalUrl(targetUrl)) {
+      isRedirected = true;
+    } else if (mockHit) {
       targetUrl = mockHit.url;
       isRedirected = true;
     } else if (lowerQuery.includes("wikipedia")) {
@@ -221,7 +217,9 @@ const useSafari = () => {
           nextHistory.push(targetUrl);
 
           let newTitle;
-          if (mockHit) {
+          if (isInternalUrl(targetUrl)) {
+            newTitle = titleForInternalUrl(targetUrl) || "Search";
+          } else if (mockHit) {
             newTitle = mockHit.title;
           } else if (targetUrl === "safari://start") {
             newTitle = "Start Page";
@@ -339,6 +337,7 @@ const useSafari = () => {
   };
 
   const getTitleForUrl = (url) => {
+    if (isInternalUrl(url)) return titleForInternalUrl(url) || "Search";
     const mock = findMockPage(url);
     if (mock) return mock.title;
     if (url === "safari://start") return "Start Page";
@@ -420,95 +419,16 @@ const useSafari = () => {
     live.current = { activeTab, bookmarks, navigateTabTo, handleGoBack };
   });
 
-  useEffect(() => {
-    const visibleLinks = () => {
-      const out = [];
-      try {
-        document.querySelectorAll("#safari a[data-dk-url]").forEach((a) => {
-          const label = (a.textContent || a.getAttribute("title") || "").trim();
-          if (label) out.push({ label, url: a.getAttribute("data-dk-url") });
-        });
-      } catch {
-        /* no DOM */
-      }
-      for (const b of live.current.bookmarks || []) out.push({ label: b.title, url: b.url });
-      return out;
-    };
-
-    const unregister = registerHandlers("browser", {
-      open_url: (args) => {
-        try {
-          const target = String(args?.url ?? "").trim();
-          if (!target) return { ok: false, message: "No page or link was given." };
-          const hit = resolveTarget(target, visibleLinks());
-          const url = hit ? hit.url : target;
-          live.current.navigateTabTo(url);
-          const mock = findMockPage(url);
-          const what = mock ? mock.title : url === START_URL ? "the start page" : url;
-          return { ok: true, message: `Opened ${what}.` };
-        } catch (err) {
-          return { ok: false, message: `Could not open that page: ${err?.message || err}` };
-        }
-      },
-      copy_link: async (args) => {
-        try {
-          const element = String(args?.element ?? "").trim();
-          const current = live.current.activeTab;
-          let url = current.url;
-          let label = current.title;
-          if (element && !isCurrentPageRef(element)) {
-            const link = pickLink(element, visibleLinks());
-            if (link) {
-              url = link.url;
-              label = link.label;
-            } else if (pickLink(element, [{ label: current.title, url: current.url }], 30)) {
-              url = current.url;
-            } else {
-              const mock = resolveTarget(element, []);
-              if (mock) url = mock.url;
-              else
-                return {
-                  ok: false,
-                  message: `I could not find a link called "${element}" on this page.`,
-                };
-            }
-          }
-          if (url === START_URL) {
-            return { ok: false, message: "The start page has no shareable link." };
-          }
-          const copied = await copyText(url);
-          return {
-            ok: true,
-            message: copied
-              ? `Copied ${url} to the clipboard.`
-              : `Copied ${url} (held in the desktop clipboard; the system clipboard was blocked).`,
-            url,
-            label,
-          };
-        } catch (err) {
-          return { ok: false, message: `Could not copy the link: ${err?.message || err}` };
-        }
-      },
-      back: () => {
-        try {
-          const tab = live.current.activeTab;
-          if (tab.historyIndex <= 0) return { ok: false, message: "There is no earlier page to go back to." };
-          live.current.handleGoBack();
-          return { ok: true, message: "Went back one page." };
-        } catch (err) {
-          return { ok: false, message: `Could not go back: ${err?.message || err}` };
-        }
-      },
-    });
-    const unregisterSummary = registerSummary("browser", () => {
-      const tab = live.current.activeTab;
-      return `Browser is showing "${tab.title}" at ${tab.url}. ${tab.historyIndex > 0 ? "Back is available." : "No earlier page."}`;
-    });
-    return () => {
-      unregister();
-      unregisterSummary();
-    };
-  }, []);
+  useEffect(
+    () =>
+      registerBrowserController("safari", () => ({
+        key: "safari",
+        navigate: (u) => live.current.navigateTabTo(u),
+        back: () => live.current.handleGoBack(),
+        tab: () => live.current.activeTab,
+      })),
+    [],
+  );
 
   return {
     tabs,

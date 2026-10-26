@@ -6,6 +6,7 @@
   --color-gray-150: #ececec;
 }
 
+@import "./orry-theme.css";
 @import "./base.css";
 @import "./effects.css";
 @import "./navbar.css";

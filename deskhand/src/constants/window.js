@@ -12,6 +12,7 @@ const WINDOW_CONFIG = {
   notes: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
   calendar: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
   weather: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
+  mail: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
   chrome: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
   vscode: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },
   music: { isOpen: false, zIndex: INITIAL_Z_INDEX, data: null },

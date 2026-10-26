@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import useCalendarStore from "../calendarStore";
+import "../handlers";
 
 const pad = (n) => String(n).padStart(2, "0");
 const isoDay = (offsetDays = 0) => {
@@ -32,67 +34,24 @@ const useCalendar = () => {
 
   const [dayEventsPopover, setDayEventsPopover] = useState(null);
 
-  const [events, setEvents] = useState(() => {
-    const saved = localStorage.getItem("deskhand_calendar_events");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    return [
-      {
-        id: "1",
-        title: "Team Sync",
-        date: isoDay(0),
-        start: "10:00",
-        end: "10:30",
-        category: "work",
-        desc: "Weekly check-in: review priorities and blockers.",
-      },
-      {
-        id: "2",
-        title: "Design Review",
-        date: isoDay(0),
-        start: "14:00",
-        end: "15:30",
-        category: "work",
-        desc: "Walk through the latest mockups and collect feedback.",
-      },
-      {
-        id: "3",
-        title: "Lunch with a Friend",
-        date: isoDay(1),
-        start: "12:30",
-        end: "13:30",
-        category: "personal",
-        desc: "Catch up over lunch.",
-      },
-      {
-        id: "4",
-        title: "Project Release",
-        date: isoDay(3),
-        start: "09:00",
-        end: "10:30",
-        category: "work",
-        desc: "Build the bundle and run the final checks.",
-      },
-      {
-        id: "5",
-        title: "Mom's Birthday",
-        date: isoDay(5),
-        start: "00:00",
-        end: "23:59",
-        category: "birthdays",
-        desc: "Don't forget the card.",
-      },
-    ];
-  });
+  const events = useCalendarStore((st) => st.events);
+  const setEvents = useCalendarStore((st) => st.setEvents);
+  const focusDate = useCalendarStore((st) => st.focusDate);
+  const clearFocus = useCalendarStore((st) => st.clearFocus);
 
   useEffect(() => {
-    localStorage.setItem("deskhand_calendar_events", JSON.stringify(events));
-  }, [events]);
+    useCalendarStore.getState().hydrate();
+  }, []);
+
+  // A voice-added event brings its day into view.
+  useEffect(() => {
+    if (!focusDate) return;
+    const [y, m, d] = focusDate.split("-").map(Number);
+    setMonth(m - 1);
+    setYear(y);
+    setSelectedDate(new Date(y, m - 1, d));
+    clearFocus();
+  }, [focusDate]);
 
   const toggleCategory = (catId) => {
     setActiveCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));

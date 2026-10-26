@@ -16,6 +16,8 @@ import {
 import { TRACKERS } from "../../data";
 import { findMockPage } from "../../data/pages";
 import MockPage from "./MockPages";
+import { InternalPage } from "../../../chrome/ui/components/InternalPages";
+import { isInternalUrl } from "../../../chrome/searchCore";
 
 const SafariContentView = ({
   activeTab,
@@ -910,6 +912,11 @@ root.render(<App />);`}</div>
         </div>
       </div>
     );
+  }
+
+  // 3a. In-app search results and article pages (shared with Chrome)
+  if (isInternalUrl(activeTab.url)) {
+    return <InternalPage url={activeTab.url} navigate={navigateTabTo} />;
   }
 
   // 3b. Built-in pages that need no network

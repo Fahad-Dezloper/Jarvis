@@ -11,7 +11,10 @@ import {
   promptText,
   welcomeEvents,
   eventsToText,
+  PROJECT,
+  pathsFromRequest,
 } from "../../interpreter";
+import { PROJECT_SUMMARY, PROJECT_NAME, projectDigest } from "../../../shared/orbitTodoProject";
 
 const TYPE_DELAY_MS = 12;
 
@@ -148,6 +151,37 @@ const TerminalInput = ({ terminalRef, xtermRef, fitAddonRef, commandRef }) => {
           const command = String(args?.command ?? "").trim();
           if (!command) return { ok: false, message: "No command given." };
           return await queue(() => typeAndRun(command));
+        } catch (err) {
+          return { ok: false, message: `Terminal error: ${err?.message || err}` };
+        }
+      },
+      read_project: async (args) => {
+        try {
+          const path = String(args?.path ?? "").trim();
+          const only = path ? pathsFromRequest(path) : [];
+          if (path && !only.length) {
+            return {
+              ok: false,
+              message: `There is no file or folder called "${path}" in ${PROJECT_NAME}.`,
+            };
+          }
+          const run = await queue(async () => {
+            if (!session.cwd.startsWith(PROJECT)) {
+              const cd = await typeAndRun("cd orbit-todo");
+              if (!cd.ok) return cd;
+            }
+            return typeAndRun(path ? `claude read ${path}` : "claude explain this project");
+          });
+          if (!run.ok) return run;
+          const digest = projectDigest({ maxChars: 4800, only: only.length ? only : undefined });
+          const data = only.length
+            ? digest.text
+            : `${digest.text}\nSummary:\n${PROJECT_SUMMARY.map((l) => `- ${l}`).join("\n")}`;
+          return {
+            ok: true,
+            message: `Read ${only.length || digest.files.length} files of ${PROJECT_NAME} in the terminal and summarised them.`,
+            data: data.slice(0, 6000),
+          };
         } catch (err) {
           return { ok: false, message: `Terminal error: ${err?.message || err}` };
         }

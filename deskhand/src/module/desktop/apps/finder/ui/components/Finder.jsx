@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import "../../../devBridge";
 import { registerHandlers, registerSummary } from "@deskhand/bridge";
 import { findFinderItem } from "../../finderSearch";
+import { readFinderFile } from "../../finderFiles";
 import { fileIconMap } from "./finderData";
 import FinderSection from "../section/FinderSection";
 import FinderAboutModal from "./FinderAboutModal";
@@ -125,6 +126,13 @@ const Finder = () => {
 
   useEffect(() => {
     const unregister = registerHandlers("finder", {
+      read_file: (args) => {
+        try {
+          return readFinderFile(String(args?.name ?? ""), Object.values(locations));
+        } catch (err) {
+          return { ok: false, message: `Could not read that file: ${err?.message || err}` };
+        }
+      },
       open: (args) => {
         try {
           const name = String(args?.name ?? "").trim();

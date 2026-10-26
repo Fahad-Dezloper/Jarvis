@@ -147,7 +147,17 @@ export default function useCalculator() {
     setOperator(nextOperator === "=" ? null : nextOperator);
   };
 
+  // Show a result computed elsewhere (voice): result on the display, expression above.
+  const loadResult = (resultText) => {
+    setValue(null);
+    setOperator(null);
+    setExpression("");
+    setDisplayValue(String(resultText));
+    setWaitingForOperand(true);
+  };
+
   return {
+    loadResult,
     value,
     displayValue,
     operator,
