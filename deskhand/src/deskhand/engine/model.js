@@ -8,7 +8,7 @@ import { CAPABILITIES } from "../capabilities.js";
 import { MODEL_MAX_ACTIONS, WINDOW_KEYS, modelPlanSchema, planFromModelOutput } from "./schema.js";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
-export const DEFAULT_GOOGLE_MODEL = "gemini-2.5-flash";
+export const DEFAULT_GOOGLE_MODEL = "gemini-3.6-flash";
 export const MODEL_TIMEOUT_MS = 20_000;
 
 const googleKey = () => process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
@@ -134,7 +134,17 @@ export async function planWithModel(req, deps = {}) {
       lastError = e;
     }
   }
-  // Never include the message verbatim: provider errors can echo request details.
+  // Log a redacted summary on the server only (never sent to the client).
+  try {
+    const secret = resolved?.apiKey;
+    let msg = String(lastError?.message ?? lastError ?? "").slice(0, 400);
+    if (secret) msg = msg.split(secret).join("[redacted]");
+    msg = msg.replace(/(key=)[^&\s"']+/gi, "$1[redacted]");
+    console.error(`[model] ${resolved?.provider ?? "?"} ${modelId} failed: ${lastError?.name ?? "Error"} ${lastError?.statusCode ?? ""} ${msg}`);
+  } catch {
+    // logging must never break planning
+  }
+  // Never include the message verbatim in the thrown error: provider errors can echo request details.
   const kind = lastError?.name === "TimeoutError" || lastError?.name === "AbortError" ? "timed out" : "failed";
   throw new Error(`model ${kind}`);
 }

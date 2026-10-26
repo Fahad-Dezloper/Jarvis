@@ -57,10 +57,19 @@ export default function VoiceCapture() {
     evaluateRef.current = evaluate;
   }, [evaluate]);
 
+  // Text can arrive as a burst of input events; coalesce the live-transcript update to one per frame.
+  const pendingLive = useRef("");
+  const liveFrame = useRef(0);
   const onInput = useCallback(
     (e) => {
       changedAt.current = Date.now();
-      useJarvisStore.getState().setLive(e.target.value.replace(/\s+/g, " ").trim());
+      pendingLive.current = e.target.value.replace(/\s+/g, " ").trim();
+      if (!liveFrame.current) {
+        liveFrame.current = requestAnimationFrame(() => {
+          liveFrame.current = 0;
+          useJarvisStore.getState().setLive(pendingLive.current);
+        });
+      }
       clearTimeout(timer.current);
       timer.current = setTimeout(() => evaluate(false), QUIET_MS + 20);
     },
