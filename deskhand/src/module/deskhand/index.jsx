@@ -1,6 +1,5 @@
 import ActionLog from "./ActionLog";
 import FirstVisitHint from "./FirstVisitHint";
-import Missions from "./Missions";
 import Subtitle from "./Subtitle";
 import TypeInstead from "./TypeInstead";
 import VirtualCursor from "./VirtualCursor";
@@ -18,7 +17,6 @@ export default function Jarvis() {
         <ActionLog />
         <FirstVisitHint />
       </div>
-      <Missions />
       <TypeInstead />
       <VirtualCursor />
     </>
