@@ -191,7 +191,7 @@ const NotesWidget = () => {
         onChange={(e) => setNoteText(e.target.value)}
         placeholder="Type a note..."
         aria-label="Sticky note"
-        className="mt-2 w-full flex-1 resize-none bg-transparent text-[12px] leading-relaxed text-zinc-700 outline-none placeholder:text-zinc-500/70 select-text"
+        className="mt-2 w-full flex-1 resize-none bg-transparent text-[12px] leading-snug text-zinc-800 outline-none placeholder:text-zinc-500/70 select-text"
       />
     </div>
   );
@@ -241,7 +241,7 @@ const WIDGET_SIZES = {
   "analog-clock": { width: 200, height: 200 },
   weather: { width: 220, height: 170 },
   battery: { width: 190, height: 130 },
-  notes: { width: 220, height: 170 },
+  notes: { width: 400, height: 290 },
   music: { width: 220, height: 130 },
 };
 
@@ -271,9 +271,9 @@ const WIDGET_SIZE_OPTIONS = {
     large: { width: 230, height: 155 },
   },
   notes: {
-    small: { width: 160, height: 120 },
-    medium: { width: 220, height: 170 },
-    large: { width: 280, height: 220 },
+    small: { width: 260, height: 190 },
+    medium: { width: 400, height: 290 },
+    large: { width: 460, height: 340 },
   },
   music: {
     small: { width: 190, height: 110 },

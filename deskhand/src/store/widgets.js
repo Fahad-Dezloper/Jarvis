@@ -4,7 +4,8 @@ import { WIDGET_KINDS } from "@module/desktop/system/widgetCore";
 export const WIDGET_OPTIONS = WIDGET_KINDS.map((k) => ({ type: k.type, label: k.label }));
 
 const KEY = "deskhand.widgets.v1";
-const DEFAULT = { widgets: ["clock-calendar"], anchors: {}, custom: {}, noteText: "" };
+const GUIDE = "JARVIS\nControl this Mac with your voice only.\nHold Fn, speak (Wispr Flow). Jarvis does it on screen.\n\nTRY SAYING\n- Open Claude Code, open the project folder and tell me what it is about\n- Open Chrome, search for Paradigm research papers and open the latest one\n- Change the wallpaper to violet waves, add a weather widget, take a screenshot\n- Open the calendar and add lunch tomorrow at one pm, open notes and write buy milk, play the HiNV playlist, then tile all windows\n\nAlso: \"stop\", \"show me the desktop\".";
+const DEFAULT = { widgets: ["clock-calendar", "notes"], anchors: { notes: "bottom-left" }, custom: {}, noteText: GUIDE };
 
 function load() {
   try {

@@ -6,7 +6,7 @@ export const WIDGET_KINDS = [
   { type: "analog-clock", label: "Analog Clock", aliases: ["analog", "analogue", "analogue clock", "watch"], size: { width: 200, height: 200 } },
   { type: "weather", label: "Weather", aliases: ["forecast", "temperature", "temp"], size: { width: 220, height: 170 } },
   { type: "battery", label: "Battery", aliases: ["power", "charge"], size: { width: 190, height: 130 } },
-  { type: "notes", label: "Notes", aliases: ["note", "sticky", "sticky note", "sticky notes", "stickies", "memo", "post it"], size: { width: 220, height: 170 } },
+  { type: "notes", label: "Notes", aliases: ["note", "sticky", "sticky note", "sticky notes", "stickies", "memo", "post it"], size: { width: 400, height: 290 } },
   { type: "music", label: "Music", aliases: ["now playing", "player", "spotify", "song", "songs", "media"], size: { width: 220, height: 130 } },
 ];
 
