@@ -41,3 +41,11 @@
  */
 
 export const CONTRACT_VERSION = 1;
+
+/**
+ * Handlers return { ok, message, data? }. `data` is optional text (for example
+ * the contents of a file or a list of search results) that the engine feeds back
+ * to the planner as an observation so multi-step tasks can use it. Keep it under
+ * about 6000 characters.
+ * @typedef {{ok:boolean, message:string, data?:string}} HandlerResult
+ */
