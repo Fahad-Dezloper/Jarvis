@@ -667,19 +667,25 @@
 
 /* captured-voice field: real, focusable, invisible */
 .dk-voice-capture {
+  /* Invisible, but a normal-sized, on-screen editable so dictation tools treat it like any text field. */
   position: fixed;
-  left: 0;
-  bottom: 0;
-  width: 1px;
-  height: 1px;
+  left: 50%;
+  bottom: 96px;
+  width: 320px;
+  height: 40px;
+  transform: translateX(-50%);
   padding: 0;
   margin: 0;
   border: 0;
-  opacity: 0;
+  outline: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  opacity: 0.01;
   pointer-events: none;
   resize: none;
   overflow: hidden;
-  z-index: -1;
+  z-index: 1;
 }
 
 /* type-instead overlay */

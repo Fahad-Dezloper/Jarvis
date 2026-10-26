@@ -12,6 +12,7 @@ const INTENT_MS = 5000;
 export default function VoiceCapture() {
   const ref = useRef(null);
   const changedAt = useRef(null);
+  const seenValue = useRef(""); // last value noticed in the field (also lets the poll catch silent changes)
   const timer = useRef(null);
   const evaluateRef = useRef(() => {});
   const paused = useRef(false); // kept for the pure helper; Escape no longer pauses capture
@@ -61,6 +62,7 @@ export default function VoiceCapture() {
       timer.current = setTimeout(() => evaluateRef.current(false), d.waitMs + 20);
     } else if (d.action === "commit") {
       el.value = "";
+      seenValue.current = "";
       changedAt.current = null;
       store.setLive("");
       commits.current += 1;
@@ -68,6 +70,7 @@ export default function VoiceCapture() {
       store.submit(d.text);
     } else if (d.action === "discard") {
       el.value = "";
+      seenValue.current = "";
       changedAt.current = null;
       store.setLive("");
     }
@@ -78,14 +81,24 @@ export default function VoiceCapture() {
     evaluateRef.current = evaluate;
   }, [evaluate]);
 
-  // Text can arrive as a burst of input events; coalesce the live-transcript update to one per frame.
+  // Text can arrive as a burst of events, or with no input event at all (some dictation tools set the
+  // field's value directly). So changes are noticed three ways: every related DOM event, and a poll of the
+  // value. Live-transcript updates are coalesced to one per frame.
   const pendingLive = useRef("");
   const liveFrame = useRef(0);
-  const onInput = useCallback(
-    (e) => {
+  const eventCounts = useRef({});
+  const lastSource = useRef("-");
+  const noteValue = useCallback(
+    (source) => {
+      const el = ref.current;
+      if (!el) return;
+      const v = el.value;
+      if (v === seenValue.current && source === "poll") return;
+      seenValue.current = v;
+      lastSource.current = source;
       changedAt.current = Date.now();
-      lastInput.current = { at: Date.now(), chars: e.target.value.length };
-      pendingLive.current = e.target.value.replace(/\s+/g, " ").trim();
+      lastInput.current = { at: Date.now(), chars: v.length };
+      pendingLive.current = v.replace(/\s+/g, " ").trim();
       if (!liveFrame.current) {
         liveFrame.current = requestAnimationFrame(() => {
           liveFrame.current = 0;
@@ -97,6 +110,30 @@ export default function VoiceCapture() {
     },
     [evaluate],
   );
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const types = ["input", "beforeinput", "paste", "change", "keyup", "compositionend", "textInput", "drop"];
+    const handlers = types.map((type) => {
+      const fn = () => {
+        eventCounts.current[type] = (eventCounts.current[type] || 0) + 1;
+        setTimeout(() => noteValue(type), 0);
+      };
+      el.addEventListener(type, fn);
+      return [type, fn];
+    });
+    const poll = setInterval(() => {
+      if (el.value !== seenValue.current) {
+        eventCounts.current.poll = (eventCounts.current.poll || 0) + 1;
+        noteValue("poll");
+      }
+    }, 100);
+    return () => {
+      handlers.forEach(([type, fn]) => el.removeEventListener(type, fn));
+      clearInterval(poll);
+    };
+  }, [noteValue]);
 
   // Engine just became free: send whatever was held, and take focus back.
   const prevBusy = useRef(false);
@@ -221,7 +258,16 @@ export default function VoiceCapture() {
       const a = document.activeElement;
       const where = a === ref.current ? "voice field" : a ? `${a.tagName.toLowerCase()}${a.className ? "." + String(a.className).split(" ")[0] : ""}` : "none";
       const ago = lastInput.current.at ? `${((Date.now() - lastInput.current.at) / 1000).toFixed(1)}s ago (${lastInput.current.chars} chars)` : "never";
-      setDebug({ where, ago, commits: commits.current, intent: hasIntent(), busy: busyRef.current });
+      setDebug({
+        where,
+        ago,
+        commits: commits.current,
+        intent: hasIntent(),
+        busy: busyRef.current,
+        via: lastSource.current,
+        events: Object.entries(eventCounts.current).map(([k, v]) => `${k}:${v}`).join(" ") || "none yet",
+        value: (ref.current?.value || "").length,
+      });
     }, 250);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,6 +282,7 @@ export default function VoiceCapture() {
       const store = useJarvisStore.getState();
       if (ref.current?.value) {
         ref.current.value = "";
+        seenValue.current = "";
         changedAt.current = null;
         store.setLive("");
       } else if (store.status === "running") {
@@ -255,6 +302,8 @@ export default function VoiceCapture() {
           <div>last text: {debug.ago}</div>
           <div>commands sent: {debug.commits}</div>
           <div>engine busy: {String(debug.busy)} · typing in a field: {String(debug.intent)}</div>
+          <div>arrived via: {debug.via} · field now holds {debug.value} chars</div>
+          <div>events seen: {debug.events}</div>
         </div>
       )}
     <textarea
@@ -262,13 +311,11 @@ export default function VoiceCapture() {
       className="dk-voice-capture"
       aria-label="Voice input"
       tabIndex={0}
-      inputMode="none"
       rows={1}
       autoComplete="off"
       autoCorrect="off"
       autoCapitalize="off"
       spellCheck={false}
-      onInput={onInput}
       onKeyDown={onKeyDown}
       onFocus={() => useJarvisStore.getState().setCaptureFocused(true)}
       onBlur={() => useJarvisStore.getState().setCaptureFocused(false)}
