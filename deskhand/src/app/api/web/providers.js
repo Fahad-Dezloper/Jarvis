@@ -1,8 +1,9 @@
 // Web search providers for /api/web/search. Order of preference:
-//   1. Google Programmable Search JSON API   (GOOGLE_CSE_API_KEY + GOOGLE_CSE_ID)
-//   2. Brave Search API                      (BRAVE_SEARCH_API_KEY)
-//   3. Gemini Google-Search grounding        (GOOGLE_GENERATIVE_AI_API_KEY / GEMINI_API_KEY)
-//   4. keyless: Wikipedia, Hacker News (Algolia), Marginalia, arXiv (+ Paradigm snapshot for papers)
+//   1. Serper (real Google results)          (SERPER_API_KEY)
+//   2. Google Programmable Search JSON API   (GOOGLE_CSE_API_KEY + GOOGLE_CSE_ID; closed to new customers)
+//   3. Brave Search API                      (BRAVE_SEARCH_API_KEY)
+//   4. Gemini Google-Search grounding        (GOOGLE_GENERATIVE_AI_API_KEY / GEMINI_API_KEY)
+//   5. keyless: Wikipedia, Hacker News (Algolia), Marginalia, arXiv (+ Paradigm snapshot for papers)
 // Official APIs only. Google/Bing result pages are never scraped.
 // Parsers are pure and exported for scripts/check-web.mjs.
 import {
@@ -144,6 +145,32 @@ async function getJson(url, ms, init) {
 export const googleCseConfigured = () =>
   Boolean(process.env.GOOGLE_CSE_API_KEY && process.env.GOOGLE_CSE_ID);
 export const braveConfigured = () => Boolean(process.env.BRAVE_SEARCH_API_KEY);
+export const serperConfigured = () => Boolean(process.env.SERPER_API_KEY);
+
+/** Serper (google.serper.dev) returns Google results: `organic` for web, `news` for the news endpoint. */
+export function parseSerper(json, news = false) {
+  const list = news ? json?.news : json?.organic;
+  return (list || []).map((it) =>
+    mkResult({
+      title: it.title,
+      url: it.link,
+      site: it.source || undefined,
+      snippet: it.snippet,
+      date: it.date || "",
+      provider: "Google (Serper)",
+    }),
+  );
+}
+
+async function serper(q, source, ms) {
+  const news = source === "news";
+  const json = await getJson(`https://google.serper.dev/${news ? "news" : "search"}`, ms, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": process.env.SERPER_API_KEY },
+    body: JSON.stringify({ q, num: 10 }),
+  });
+  return parseSerper(json, news);
+}
 export const geminiKey = () =>
   process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
 
@@ -407,6 +434,7 @@ export async function searchWeb(rawQuery, source = "web", opts = {}) {
 
   // 1-3: providers that need a key. First one that returns results wins.
   const keyed = [];
+  if (serperConfigured()) keyed.push(["Google (Serper)", (ms) => serper(query, src, ms), 4000]);
   if (googleCseConfigured()) keyed.push(["Google", (ms) => googleCse(query, src, ms), 4000]);
   if (braveConfigured()) keyed.push(["Brave", (ms) => brave(query, src, ms), 4000]);
   if (geminiKey()) keyed.push(["Gemini (Google Search grounding)", (ms) => geminiGrounded(query, src, ms), 6000]);

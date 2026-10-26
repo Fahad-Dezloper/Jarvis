@@ -70,7 +70,7 @@ Checks: `npm run check:engine`, `check:apps`, `check:ui`.
 
 ### Deploy on Vercel
 
-Import the repository, set **Root Directory** to `deskhand`, and add either `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` (and optionally `DESKHAND_PROVIDER` or `DESKHAND_MODEL`) as environment variables. Keep the key server-side and put a spending limit on it.
+Import the repository, set **Root Directory** to `deskhand`, and add either `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY`, plus `SERPER_API_KEY` for real Google results (and optionally `DESKHAND_PROVIDER` or `DESKHAND_MODEL`) as environment variables. Keep the key server-side and put a spending limit on it.
 
 ## Also in this repo: Motion Brief
 

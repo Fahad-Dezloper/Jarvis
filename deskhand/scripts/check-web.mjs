@@ -16,6 +16,7 @@ import {
   dedupeResults,
   interleave,
   parseBrave,
+  parseSerper,
   parseGeminiGrounding,
   parseGoogleCse,
   parseHackerNews,
@@ -245,6 +246,14 @@ await check("Brave web and news payloads map to results", () => {
   assert.equal(web[0].date, "2026-10-01");
   const news = parseBrave({ results: [{ title: "N", url: "https://n.example/y", description: "d" }] }, true);
   assert.equal(news[0].title, "N");
+});
+await check("Serper payloads map to Google results", () => {
+  const web = parseSerper({ organic: [{ title: "Prediction market", link: "https://en.wikipedia.org/wiki/Prediction_market", snippet: "A market...", date: "Oct 1, 2026", position: 1 }] });
+  assert.equal(web[0].title, "Prediction market");
+  assert.equal(web[0].provider, "Google (Serper)");
+  const news = parseSerper({ news: [{ title: "N", link: "https://n.example/y", snippet: "d", source: "Example News", date: "2 hours ago" }] }, true);
+  assert.equal(news[0].site, "Example News");
+  assert.deepEqual(parseSerper({}), []);
 });
 await check("Gemini grounding: sources become results, redirect-domain titles are tidied, supports give snippets", () => {
   const out = parseGeminiGrounding({

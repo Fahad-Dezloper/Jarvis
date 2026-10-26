@@ -12,7 +12,7 @@ cp .env.example .env.local   # optional keys, see below
 npm run dev
 ```
 
-Keys are optional and read on the server only: `GOOGLE_GENERATIVE_AI_API_KEY` (or `ANTHROPIC_API_KEY`) for the AI planner; `GOOGLE_CSE_API_KEY` + `GOOGLE_CSE_ID` or `BRAVE_SEARCH_API_KEY` for Google or Brave web search. Without keys Jarvis falls back to offline rules and keyless web sources.
+Keys are optional and read on the server only: `GOOGLE_GENERATIVE_AI_API_KEY` (or `ANTHROPIC_API_KEY`) for the AI planner; `SERPER_API_KEY` (real Google results) or `BRAVE_SEARCH_API_KEY` for web search. Without keys Jarvis falls back to offline rules and keyless web sources.
 
 Checks: `npm run check:engine`, `check:apps`, `check:ui`, `check:web`, `check:system`.
 
