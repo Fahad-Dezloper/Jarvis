@@ -44,6 +44,30 @@ export const CAPABILITIES = {
   calculator: [
     { name: "compute", description: "Evaluate an arithmetic expression and show it.", params: { type: "object", properties: { expression: str("Expression, e.g. '18% of 2450'") }, required: ["expression"] } },
   ],
+  // Whole-desktop controls. Handlers for this group register as soon as the desktop mounts (no window needed).
+  desktop: [
+    { name: "set_wallpaper", description: "Change the desktop wallpaper by name or number (see list_wallpapers; also plain colours such as 'midnight' or 'sky blue').", params: { type: "object", properties: { name: str("Wallpaper name, colour or number") }, required: ["name"] } },
+    { name: "list_wallpapers", description: "Return the available wallpapers.", params: { type: "object", properties: {} } },
+    { name: "widget_list", description: "Return the widgets on the desktop and the kinds that can be added.", params: { type: "object", properties: {} } },
+    { name: "widget_add", description: "Add a desktop widget (clock, calendar, weather, notes, music, battery...).", params: { type: "object", properties: { kind: str("Widget kind") }, required: ["kind"] } },
+    { name: "widget_remove", description: "Remove a desktop widget.", params: { type: "object", properties: { kind: str("Widget kind") }, required: ["kind"] } },
+    { name: "widget_move", description: "Move a widget to a screen position.", params: { type: "object", properties: { kind: str("Widget kind"), position: { type: "string", enum: ["top-left", "top-right", "bottom-left", "bottom-right", "center"] } }, required: ["kind", "position"] } },
+    { name: "dock_add", description: "Add an app to the dock.", params: { type: "object", properties: { app: str("App name") }, required: ["app"] } },
+    { name: "dock_remove", description: "Remove an app from the dock.", params: { type: "object", properties: { app: str("App name") }, required: ["app"] } },
+    { name: "dock_autohide", description: "Turn dock auto-hide on or off.", params: { type: "object", properties: { hidden: { type: "boolean" } }, required: ["hidden"] } },
+    { name: "create_folder", description: "Create a folder on the desktop.", params: { type: "object", properties: { name: str("Folder name") }, required: ["name"] } },
+    { name: "create_file", description: "Create a text file on the desktop.", params: { type: "object", properties: { name: str("File name"), text: str("File contents") }, required: ["name"] } },
+    { name: "rename_item", description: "Rename a desktop file or folder.", params: { type: "object", properties: { from: str("Current name"), to: str("New name") }, required: ["from", "to"] } },
+    { name: "delete_item", description: "Move a desktop file or folder to the Trash.", params: { type: "object", properties: { name: str("Name") }, required: ["name"] } },
+    { name: "show_desktop", description: "Minimise every window to show the desktop.", params: { type: "object", properties: {} } },
+    { name: "open_launchpad", description: "Open Launchpad.", params: { type: "object", properties: {} } },
+    { name: "close_launchpad", description: "Close Launchpad.", params: { type: "object", properties: {} } },
+    { name: "spotlight", description: "Open Spotlight search with a query and return the top matches.", params: { type: "object", properties: { query: str("Search text") }, required: ["query"] } },
+    { name: "lock_screen", description: "Lock the screen.", params: { type: "object", properties: {} } },
+    { name: "screenshot", description: "Take a screenshot of the desktop.", params: { type: "object", properties: {} } },
+    { name: "set_brightness", description: "Set screen brightness 0 to 100.", params: { type: "object", properties: { level: { type: "number", minimum: 0, maximum: 100 } }, required: ["level"] } },
+    { name: "set_system_volume", description: "Set system volume 0 to 100.", params: { type: "object", properties: { level: { type: "number", minimum: 0, maximum: 100 } }, required: ["level"] } },
+  ],
   weather: [
     { name: "show", description: "Show the weather for a city and return a short description.", params: { type: "object", properties: { city: str("City name") }, required: ["city"] } },
   ],
@@ -67,3 +91,6 @@ export const WINDOW_TO_GROUP = {
   calculator: "calculator",
   weather: "weather",
 };
+
+/** Groups whose handlers are always available (no window to open first). */
+export const WINDOWLESS_GROUPS = ["desktop"];
