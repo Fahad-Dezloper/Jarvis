@@ -108,9 +108,12 @@ export async function POST(req) {
     const plan = await planWithModel({ command, snapshot, history, observations, round });
     return NextResponse.json({ ...plan, actions: sanitizeActions(plan.actions) });
   } catch (e) {
-    const why =
-      e?.message === "model timed out" ? "timed out" : e?.message === "model quota" ? "hit its rate limit (quota)" : "was unavailable";
-    const note = `The AI model ${why}, so the offline rules planned this.`;
+    const note =
+      e?.message === "model quota"
+        ? "The AI model's free quota is used up right now (HTTP 429), so the offline rules planned this. Quota usually returns within a few minutes."
+        : e?.message === "model timed out"
+          ? "The AI model timed out, so the offline rules planned this."
+          : "The AI model was unavailable, so the offline rules planned this.";
     return round > 1 ? wrapUp(note) : rulesPlan(note);
   }
 }

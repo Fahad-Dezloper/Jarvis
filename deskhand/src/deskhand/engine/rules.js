@@ -2,6 +2,11 @@
 // Action[] (see ../contract.js). Dictation is messy, so the first pass strips
 // filler and keeps only the last correction ("open notes, no wait, terminal").
 import { CLIPBOARD_TOKEN } from "./schema.js";
+import { FILE_EXT, planDesktopSegment } from "./rules-desktop.js";
+
+/** Shown when the offline rules cannot understand a command. */
+export const OFFLINE_FAIL_MESSAGE =
+  "I couldn't match that offline. The AI planner is unavailable right now (quota or connection), so I can only handle common commands. Try: \"open Notes\", \"change the wallpaper to blue\", \"search the web for solana\", \"take a screenshot\".";
 
 const APP_NAMES = {
   terminal: "Terminal",
@@ -84,6 +89,7 @@ export function cleanText(text) {
   // keep what follows the last self-correction
   const parts = t.split(CORRECTION);
   if (parts.length > 1 && parts[parts.length - 1].trim().length > 1) t = parts[parts.length - 1];
+  t = t.replace(/\s+dot\s+(com|org|net|io|dev|ai|co|app|edu|gov|so)\b/gi, ".$1");
   t = t.replace(FILLER_INLINE, " ").trim();
   t = t.replace(FILLER_LEAD, "");
   t = t.replace(/[\s.!?,;]+$/g, "").replace(/\s+/g, " ").trim();
@@ -91,16 +97,20 @@ export function cleanText(text) {
 }
 
 const VERBS =
-  "open|close|launch|start|play|pause|stop|run|minimi[sz]e|maximi[sz]e|tile|put|write|note|save|turn|set|switch|skip|jot|copy|resize|arrange|make|focus|show|quit|exit|hide|restore|organi[sz]e|type|execute|enable|disable|mute|resume|next";
+  "open|close|launch|start|play|pause|stop|run|minimi[sz]e|maximi[sz]e|tile|put|write|note|save|turn|set|switch|skip|jot|copy|resize|arrange|make|focus|show|quit|exit|hide|restore|organi[sz]e|type|execute|enable|disable|mute|resume|next|lower|raise|increase|decrease|take|lock|change|create|dim|brighten";
 
 export function splitCommand(text) {
   const seqs = text.split(/\s*(?:,?\s+and then\s+|,?\s+then\s+|,?\s+after that\s+|,?\s+afterwards\s+|;\s*)/i);
   const out = [];
   const andRe = new RegExp(`,?\\s+and\\s+(?:also\\s+)?(?=(?:${VERBS})\\b)`, "i");
   const commaRe = new RegExp(`,\\s+(?:also\\s+)?(?=(?:${VERBS})\\b)`, "i");
+  // add/remove/delete/search only split when they clearly start a desktop-style command
+  const deskRe = /,?\s+and\s+(?:also\s+)?(?=(?:add|remove|delete|hide|search|rename)\b[^,]*\b(?:widget|dock|folder|file|wallpaper|web|google)\b)/i;
   for (const s of seqs) {
     for (const piece of s.split(andRe)) {
-      for (const p of piece.split(commaRe)) if (p.trim()) out.push(p.trim());
+      for (const p2 of piece.split(deskRe)) {
+        for (const p of p2.split(commaRe)) if (p.trim()) out.push(p.trim());
+      }
     }
   }
   return out;
@@ -153,7 +163,7 @@ function arithmeticExpression(t) {
 
 function parseWhich(t) {
   if (/\b(?:latest|newest|most recent|recent|last)\b/i.test(t)) return "latest";
-  if (/\b(?:first|top|1st|best match)\b/i.test(t)) return "first";
+  if (/\b(?:first|top|1st|best(?: match| result)?)\b/i.test(t)) return "first";
   if (/\b(?:second|2nd)\b/i.test(t)) return "2";
   if (/\b(?:third|3rd)\b/i.test(t)) return "3";
   return "first";
@@ -165,6 +175,8 @@ function parseWhich(t) {
 function planComplex(cleaned, ctx) {
   const snap = ctx.snapshot ?? null;
   const t = cleaned;
+  // widget / dock / wallpaper asks belong to the desktop rules (they mention weather, calendar, music...)
+  if (/\b(?:widgets?|dock|wallpaper|background)\b/i.test(t)) return null;
   const visible = new Set((snap?.windows ?? []).filter((w) => !w.minimized).map((w) => w.key));
   const out = (actions, reply, followup) => ({
     actions,
@@ -196,7 +208,8 @@ function planComplex(cleaned, ctx) {
   // --- browser search (optionally open a result) ---
   if (
     (m = /^(?:(?:open|launch|start|go to)\s+(?:the\s+)?(?:google\s+)?(chrome|safari|browser|web browser)(?:\s+browser)?[\s,]*(?:and\s+)?(?:then\s+)?)?(?:search(?:\s+the web)?|google|look up|look for|find|research)\s+(?:for\s+|up\s+)?(.+)$/i.exec(t)) &&
-    (m[1] || /^(?:search|google|look up)/i.test(t))
+    (m[1] || /^(?:search|google|look up)/i.test(t)) &&
+    !/^(?:search|find|look for)\s+(?:my|the)\s+(?:mac|computer|desktop|files|laptop)\b/i.test(t)
   ) {
     let q = m[2];
     let opened = false;
@@ -207,7 +220,8 @@ function planComplex(cleaned, ctx) {
       opened = true;
       which = parseWhich(tail[2]);
     }
-    q = tidy(q.replace(/\s+(?:for me|please|online|on the web|on google|in (?:chrome|safari|the browser))$/i, ""));
+    const read = !!tail && /\b(?:summari[sz]e|summary|read|tell me|explain)\b/i.test(tail[2]);
+    q = tidy(q.replace(/^(?:the web|the internet|online|google|bing)\s+(?:for\s+)?/i, "").replace(/\s+(?:for me|please|online|on the web|on google|in (?:chrome|safari|the browser))$/i, ""));
     if (q) {
       const papers = /\b(?:papers?|research|paradigm|arxiv|study|studies|journal)\b/i.test(q);
       const browser = /\bsafari\b/i.test(t) ? "safari" : "chrome";
@@ -215,8 +229,9 @@ function planComplex(cleaned, ctx) {
         ...openIf(browser),
         { type: "invoke", app: "browser", name: "search", args: { query: q, source: papers ? "papers" : "web" } },
         ...(opened ? [{ type: "invoke", app: "browser", name: "open_result", args: { which } }] : []),
+        ...(read ? [{ type: "invoke", app: "browser", name: "read_page", args: {} }] : []),
       ];
-      return out(actions, `Searching for ${q}${opened ? " and opening the result" : ""}.`, { kind: "search_report", opened });
+      return out(actions, `Searching for ${q}${opened ? " and opening the result" : ""}.`, { kind: "search_report", opened, ...(read ? { read: true } : {}) });
     }
   }
 
@@ -227,7 +242,7 @@ function planComplex(cleaned, ctx) {
   }
 
   // --- weather ---
-  if ((m = /\bweather\b.*?\b(?:in|for|at|of)\s+(.+)$/i.exec(t)) || (m = /\bhow(?:'s| is)\s+(?:it|the weather)\s+(?:looking\s+)?(?:in|at)\s+(.+)$/i.exec(t))) {
+  if ((!/\bwidget\b/i.test(t) && (m = /\bweather\b.*?\b(?:in|for|at|of)\s+(.+)$/i.exec(t))) || (m = /\bhow(?:'s| is)\s+(?:it|the weather)\s+(?:looking\s+)?(?:in|at)\s+(.+)$/i.exec(t))) {
     const city = tidy(m[1].replace(/\b(?:today|tonight|tomorrow|right now|now|please|like)\b/gi, ""));
     if (city) {
       return out([...openIf("weather"), { type: "invoke", app: "weather", name: "show", args: { city } }], `Checking the weather in ${city}.`, { kind: "answer" });
@@ -345,10 +360,21 @@ export function planWithRules(text, ctx = {}) {
     return [];
   };
 
+  let followup = null;
   for (const seg of segments) {
     const low = seg.toLowerCase();
     let m;
     const startLen = actions.length;
+
+    // ----- desktop, system and real-web asks (wallpaper, widgets, dock, files, search, ...) -----
+    const desk = planDesktopSegment(seg, { snap, mentionedApps, appName: nm, pickBrowser, openNow });
+    if (desk) {
+      for (const key of desk.needs ?? []) need(key);
+      for (const a of desk.actions) actions.push(a);
+      phrases.push(desk.phrase);
+      if (desk.followup) followup = desk.followup;
+      continue;
+    }
 
     // ----- save a link to notes -----
     if (
@@ -472,7 +498,7 @@ export function planWithRules(text, ctx = {}) {
       push({ type: "invoke", app: "browser", name: "back", args: {} }, "going back");
       continue;
     }
-    if ((m = /^(?:open|go to|visit|browse to|navigate to)\s+((?:https?:\/\/)?[\w-]+(?:\.[\w-]+)+(?:\/\S*)?)$/i.exec(seg)) && !mentionedApps(m[1]).length) {
+    if ((m = /^(?:open|go to|visit|browse to|navigate to)\s+((?:https?:\/\/)?[\w-]+(?:\.[\w-]+)+(?:\/\S*)?)$/i.exec(seg)) && !mentionedApps(m[1]).length && !FILE_EXT.test(m[1])) {
       need(pickBrowser());
       push({ type: "invoke", app: "browser", name: "open_url", args: { url: m[1] } }, `opening ${m[1]}`);
       continue;
@@ -665,14 +691,19 @@ export function planWithRules(text, ctx = {}) {
 
   const sayOnly = actions.length > 0 && actions.every((a) => a.type === "say");
   if (!actions.length || sayOnly) {
-    const reply = unknown.length
-      ? `Sorry, I can't do that without the AI model. Offline I can open and close apps, tile windows, play music, run terminal commands, and take notes.`
-      : "No windows are open.";
+    const reply = unknown.length ? OFFLINE_FAIL_MESSAGE : "No windows are open.";
     return { actions: sayOnly ? actions : [], reply: sayOnly ? "No windows are open." : reply, source: "rules", done: true, ...(ctx.note ? { note: ctx.note } : {}) };
   }
 
   let reply = phrases.length ? phrases.join(", then ") : "Done";
   reply = reply.charAt(0).toUpperCase() + reply.slice(1) + ".";
   if (unknown.length) reply += ` I couldn't handle: "${unknown.join('", "')}".`;
-  return { actions: actions.slice(0, 8), reply, source: "rules", done: true, ...(ctx.note ? { note: ctx.note } : {}) };
+  return {
+    actions: actions.slice(0, 12),
+    reply,
+    source: "rules",
+    done: !followup,
+    ...(followup ? { followup } : {}),
+    ...(ctx.note ? { note: ctx.note } : {}),
+  };
 }

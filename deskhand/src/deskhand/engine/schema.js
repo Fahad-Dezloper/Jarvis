@@ -3,7 +3,8 @@
 // action types are dropped, numbers are clamped, strings are capped, and only
 // capabilities declared in capabilities.js can be invoked.
 import { z } from "zod";
-import { CAPABILITIES, WINDOW_TO_GROUP } from "../capabilities.js";
+import { WINDOW_TO_GROUP } from "../capabilities.js";
+import { findCapability } from "./engine-capabilities.js";
 import { WINDOW_CONFIG } from "../../constants/window.js";
 
 export const MAX_ACTIONS = 24;
@@ -79,11 +80,19 @@ const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 const EXPRESSION_WORDS = /\b(?:of|percent|plus|minus|times|divided|by|multiplied|over|x|power|to|the|squared)\b/gi;
 const EXPRESSION_OK = /^[\d\s%+\-*/^().,=×÷$€£₹]+$/u;
 
-/** Max string length per "app.name.arg"; anything not listed gets TEXT_MAX. */
+/** Default clip for free-text string args; known body/text fields get the longer limit. */
+export const DEFAULT_STRING_MAX = 600;
+export const LONG_TEXT_MAX = 4000;
+const LONG_TEXT_KEYS = new Set(["body", "text", "content", "contents", "message", "note", "notes"]);
+
+/**
+ * Optional tighter limits per "app.name.arg". Anything not listed gets
+ * DEFAULT_STRING_MAX, or LONG_TEXT_MAX for body/text style fields. The catalog
+ * (capabilities.js) is the only source of truth for what may be invoked.
+ */
 export const ARG_LIMITS = {
   "terminal.run_command.command": 500,
   "terminal.read_project.path": 200,
-  "notes.append_note.text": 2000,
   "notes.new_note.title": 120,
   "browser.search.query": 200,
   "browser.open_result.which": 200,
@@ -93,56 +102,113 @@ export const ARG_LIMITS = {
   "finder.read_file.name": 200,
   "mail.compose.to": 200,
   "mail.compose.subject": 200,
-  "mail.compose.body": 3000,
   "calendar.add_event.title": 200,
   "calendar.add_event.when": 120,
   "calculator.compute.expression": 200,
   "weather.show.city": 80,
 };
 
-/** Validate invoke args against the declared capability params. Returns args or null. */
+const TRUE_WORDS = new Set(["true", "yes", "on", "1"]);
+const FALSE_WORDS = new Set(["false", "no", "off", "0"]);
+const SETTING_KEYS = ["wifi", "bluetooth", "focusMode", "nightLight", "vpn"];
+
+const slug = (v) => String(v).trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+/** Match a value to an enum entry, tolerating case and "top left" vs "top-left". */
+function matchEnum(values, v) {
+  if (values.includes(v)) return v;
+  const want = slug(v);
+  return values.find((e) => typeof e === "string" && slug(e) === want);
+}
+
+function coerceNumber(v) {
+  if (typeof v === "number") return v;
+  if (typeof v === "string") {
+    const m = /^\s*(-?\d+(?:\.\d+)?)\s*(?:%|percent)?\s*$/i.exec(v);
+    if (m) return Number(m[1]);
+  }
+  return NaN;
+}
+
+/** Validate one argument against its JSON-schema property. Returns {value} or null when invalid. */
+function validateArg(app, name, key, spec, raw) {
+  switch (spec.type) {
+    case "string": {
+      if (typeof raw !== "string" && typeof raw !== "number") return null;
+      let v = String(raw).replace(CONTROL_CHARS, "");
+      if (Array.isArray(spec.enum)) {
+        const hit = matchEnum(spec.enum, v);
+        return hit === undefined ? null : { value: hit };
+      }
+      const limit = ARG_LIMITS[`${app}.${name}.${key}`] ?? (LONG_TEXT_KEYS.has(key) ? LONG_TEXT_MAX : DEFAULT_STRING_MAX);
+      if (v.length > limit) {
+        // a clipped URL would point somewhere else, so it is refused instead
+        if (key === "url") return null;
+        v = v.slice(0, limit);
+      }
+      if (SCRIPT_LIKE.test(v)) return null;
+      if (app === "calculator" && key === "expression" && !EXPRESSION_OK.test(v.replace(EXPRESSION_WORDS, ""))) return null;
+      if (key === "url") {
+        if (BAD_SCHEME.test(v)) return null;
+        if (v.includes("://") && !/^https?:\/\//i.test(v.trim())) return null;
+      }
+      return { value: v };
+    }
+    case "number":
+    case "integer": {
+      let v = coerceNumber(raw);
+      if (!Number.isFinite(v)) return null;
+      v = Math.min(spec.maximum ?? 1e6, Math.max(spec.minimum ?? -1e6, v));
+      return { value: spec.type === "integer" ? Math.round(v) : v };
+    }
+    case "boolean": {
+      if (typeof raw === "boolean") return { value: raw };
+      const w = String(raw).trim().toLowerCase();
+      if (TRUE_WORDS.has(w)) return { value: true };
+      if (FALSE_WORDS.has(w)) return { value: false };
+      return null;
+    }
+    case "array": {
+      if (!Array.isArray(raw)) return null;
+      const out = [];
+      for (const item of raw.slice(0, 20)) {
+        if (typeof item !== "string" && typeof item !== "number") return null;
+        const t = String(item).replace(CONTROL_CHARS, "").slice(0, 200);
+        if (SCRIPT_LIKE.test(t)) return null;
+        out.push(t);
+      }
+      return { value: out };
+    }
+    default:
+      return undefined; // object and unknown types are not accepted from the planner
+  }
+}
+
+/**
+ * Validate invoke args against the catalog entry's JSON-schema params
+ * (types, enums, min/max, required). Unknown keys are dropped. Returns the
+ * clean args, or null when the capability does not exist or an arg is invalid.
+ */
 export function validateInvokeArgs(app, name, rawArgs) {
-  const cap = CAPABILITIES[app]?.find((c) => c.name === name);
+  const cap = findCapability(app, name);
   if (!cap) return null;
   const props = cap.params?.properties ?? {};
   const required = cap.params?.required ?? [];
   const args = {};
   const input = rawArgs && typeof rawArgs === "object" && !Array.isArray(rawArgs) ? rawArgs : {};
   for (const [key, spec] of Object.entries(props)) {
-    let v = input[key];
+    const v = input[key];
     if (v === undefined || v === null) continue;
-    if (spec.type === "string") {
-      if (typeof v !== "string" && typeof v !== "number") return null;
-      v = String(v).replace(CONTROL_CHARS, "");
-      if (v.length > (ARG_LIMITS[`${app}.${name}.${key}`] ?? TEXT_MAX)) {
-        // enum and url values are never truncated into something else; free text is clipped
-        if (spec.enum || key === "url") return null;
-        v = v.slice(0, ARG_LIMITS[`${app}.${name}.${key}`] ?? TEXT_MAX);
-      }
-      if (SCRIPT_LIKE.test(v)) return null;
-      if (app === "calculator" && key === "expression" && !EXPRESSION_OK.test(v.replace(EXPRESSION_WORDS, ""))) return null;
-      if (spec.enum && !spec.enum.includes(v)) return null;
-      if (key === "url") {
-        if (BAD_SCHEME.test(v)) return null;
-        if (v.includes("://") && !/^https?:\/\//i.test(v.trim())) return null;
-      }
-    } else if (spec.type === "number") {
-      v = Number(v);
-      if (!Number.isFinite(v)) return null;
-      v = Math.min(spec.maximum ?? 1e6, Math.max(spec.minimum ?? -1e6, v));
-    } else if (spec.type === "boolean") {
-      if (typeof v === "string") v = v === "true";
-      if (typeof v !== "boolean") return null;
-    } else {
-      continue;
-    }
-    args[key] = v;
+    const r = validateArg(app, name, key, spec, v);
+    if (r === null) return null;
+    if (r === undefined) continue;
+    args[key] = r.value;
   }
   for (const key of required) if (args[key] === undefined) return null;
   // set_setting only accepts known toggles
-  if (app === "settings" && name === "set_setting") {
-    if (!["wifi", "bluetooth", "focusMode", "nightLight", "vpn"].includes(args.key)) return null;
-  }
+  if (app === "settings" && name === "set_setting" && !SETTING_KEYS.includes(args.key)) return null;
+  // ui.snapshot only reads windows that exist in the desktop config
+  if (app === "ui" && name === "snapshot" && !WINDOW_KEYS.includes(args.window)) return null;
   return args;
 }
 
@@ -228,5 +294,5 @@ export function planFromModelOutput(output) {
   const actions = sanitizeActions(mapped).slice(0, MODEL_MAX_ACTIONS);
   const reply = typeof output?.reply === "string" ? output.reply.trim().slice(0, 1200) : "";
   const done = !(output?.done === false && actions.length > 0);
-  return { actions, done, reply: reply || (actions.length ? "On it." : "I can't do that here.") };
+  return { actions, done, reply: reply || (actions.length ? "On it." : "I couldn't find a way to do that.") };
 }

@@ -229,7 +229,7 @@ export async function runLoop(text, opts, deps) {
     }
 
     if (done) {
-      const final = reply || summarizeObservations(observations) || (executed ? "Done." : "I can't do that here.");
+      const final = reply || summarizeObservations(observations) || (executed ? "Done." : "I couldn't find a way to do that.");
       return finish(final, executed > 0);
     }
 

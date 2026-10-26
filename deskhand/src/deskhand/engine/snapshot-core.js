@@ -3,6 +3,12 @@
 
 export const MAX_ELEMENTS_PER_WINDOW = 60;
 export const MAX_WINDOWS = 30;
+/** Elements kept for the other windows; the focused window keeps up to MAX_ELEMENTS_PER_WINDOW. */
+export const MAX_ELEMENTS_OTHER_WINDOW = 30;
+export const MAX_ELEMENTS_TOTAL = 240;
+/** Windowless summaries (desktop) can be ~1500 chars; give each room and cap the sum. */
+export const MAX_SUMMARY_CHARS = 1800;
+export const MAX_SUMMARIES_TOTAL = 6000;
 const MAX_LABEL = 80;
 const MAX_VALUE = 120;
 
@@ -29,32 +35,54 @@ export function trimSnapshot(raw) {
       rect: trimRect(w.rect),
     }));
 
+  // Elements: the focused window first (full list), then the rest by recency, within a total budget.
+  const zOf = (k) => windows.find((w) => w.key === k)?.z ?? 0;
+  const topWindow = [...windows].filter((w) => !w.minimized).sort((a, b) => b.z - a.z)[0]?.key ?? null;
+  const focusedKey = typeof s.focused === "string" && s.focused ? clip(s.focused, 30) : topWindow;
   const elements = {};
   if (s.elements && typeof s.elements === "object") {
-    for (const [key, list] of Object.entries(s.elements).slice(0, MAX_WINDOWS)) {
-      if (!Array.isArray(list)) continue;
-      elements[clip(key, 30)] = list
+    const entries = Object.entries(s.elements)
+      .slice(0, MAX_WINDOWS)
+      .map(([key, list]) => [clip(key, 30), list])
+      .filter(([, list]) => Array.isArray(list))
+      .sort((a, b) => (a[0] === focusedKey ? -1 : b[0] === focusedKey ? 1 : zOf(b[0]) - zOf(a[0])));
+    let budget = MAX_ELEMENTS_TOTAL;
+    for (const [key, list] of entries) {
+      const cap = Math.min(budget, key === focusedKey ? MAX_ELEMENTS_PER_WINDOW : MAX_ELEMENTS_OTHER_WINDOW);
+      const kept = list
         .filter((e) => e && typeof e.id === "string")
-        .slice(0, MAX_ELEMENTS_PER_WINDOW)
+        .slice(0, cap)
         .map((e) => ({
           id: clip(e.id, 24),
           role: clip(e.role, 16),
           label: clip(e.label, MAX_LABEL),
           ...(e.value ? { value: clip(String(e.value), MAX_VALUE) } : {}),
         }));
+      budget -= kept.length;
+      elements[key] = kept;
     }
   }
 
+  // Summaries: windowless groups (desktop) first so trimming never drops them.
   const summaries = {};
   if (s.summaries && typeof s.summaries === "object") {
-    for (const [k, v] of Object.entries(s.summaries).slice(0, 12)) summaries[clip(k, 20)] = clip(String(v ?? ""), 400);
+    let room = MAX_SUMMARIES_TOTAL;
+    const ordered = Object.entries(s.summaries)
+      .slice(0, 24)
+      .sort((a, b) => (a[0] === "desktop" ? -1 : b[0] === "desktop" ? 1 : 0));
+    for (const [k, v] of ordered) {
+      if (room <= 0) break;
+      const text = clip(String(v ?? ""), Math.min(MAX_SUMMARY_CHARS, room));
+      room -= text.length;
+      summaries[clip(k, 20)] = text;
+    }
   }
 
   const capabilities = (Array.isArray(s.capabilities) ? s.capabilities : [])
-    .slice(0, 12)
+    .slice(0, 24)
     .map((c) => ({
       app: clip(c?.app, 20),
-      handlers: (Array.isArray(c?.handlers) ? c.handlers : []).slice(0, 20).map((h) => clip(h, 30)),
+      handlers: (Array.isArray(c?.handlers) ? c.handlers : []).slice(0, 48).map((h) => clip(h, 30)),
     }));
 
   const music = s.music && typeof s.music === "object" ? s.music : {};

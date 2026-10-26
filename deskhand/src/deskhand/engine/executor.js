@@ -5,6 +5,8 @@ import gsap from "gsap";
 import useWindowsStore from "../../store/window.js";
 import { getHandlers } from "../bridge.js";
 import { WINDOW_TO_GROUP } from "../capabilities.js";
+import { isWindowless } from "./engine-capabilities.js";
+import { DATA_MAX_CHARS, HANDLER_WAIT_MS, formatElements, handlerNotReadyMessage, invokeTimeout, windowsForGroup } from "./invoke-core.js";
 import { CLIPBOARD_TOKEN } from "./schema.js";
 import { clampRect, computeTiles } from "./layout.js";
 import { bestElement } from "./snapshot-core.js";
@@ -24,21 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const ok = (message) => ({ ok: true, message });
 const fail = (message) => ({ ok: false, message });
 const MOVE_SECONDS = 0.5;
-const INVOKE_TIMEOUT_MS = 5000;
-const DATA_MAX_CHARS = 6000;
-/** Slower handlers (searching, reading, fetching) get longer than the 5s default. */
-const SLOW_INVOKE_TIMEOUT_MS = 15_000;
-const SLOW_HANDLERS = new Set([
-  "browser.search",
-  "browser.open_result",
-  "browser.read_page",
-  "terminal.read_project",
-  "terminal.run_command",
-  "finder.read_file",
-  "weather.show",
-  "calendar.list_events",
-]);
-export const invokeTimeout = (app, name) => (SLOW_HANDLERS.has(`${app}.${name}`) ? SLOW_INVOKE_TIMEOUT_MS : INVOKE_TIMEOUT_MS);
+export { invokeTimeout };
 
 const areaRect = () => {
   const a = getViewportArea();
@@ -241,6 +229,20 @@ function storeFallback(app, name, args) {
   return null;
 }
 
+/** ui.snapshot is served by the engine itself: it lists the clickable elements of one open window. */
+function doUiSnapshot(args) {
+  const key = args.window;
+  const w = winState(key);
+  if (!w?.isOpen) return fail(`${key} is not open, so there is nothing to snapshot. Open it first.`);
+  if (w.isMinimized) return fail(`${key} is minimised. Restore or focus it first.`);
+  if (!isRendered(windowElement(key))) return fail(`${key} is not on screen yet`);
+  const list = scanWindowElements(key);
+  const focused = Object.entries(store().windows)
+    .filter(([, x]) => x.isOpen && !x.isMinimized)
+    .sort((a, b) => b[1].zIndex - a[1].zIndex)[0]?.[0];
+  return { ok: true, message: `${list.length} elements in ${key}`, data: formatElements(key, list, { focused: focused === key }) };
+}
+
 async function doInvoke(action) {
   const { app, name } = action;
   const args = { ...(action.args ?? {}) };
@@ -251,15 +253,24 @@ async function doInvoke(action) {
       args[k] = v.split(CLIPBOARD_TOKEN).join(clip);
     }
   }
-  const appeared = await waitFor(() => getHandlers(app)?.[name], 4000, 100);
+  if (app === "ui" && name === "snapshot") return doUiSnapshot(args);
+  // Handlers register when their window (or, for windowless groups such as desktop, the desktop) mounts.
+  const appeared = await waitFor(() => getHandlers(app)?.[name], HANDLER_WAIT_MS, 100);
   const fn = getHandlers(app)?.[name];
   if (!appeared || typeof fn !== "function") {
     const fb = storeFallback(app, name, args);
     if (fb) return fb;
-    return fail(`The ${app} app is not ready for "${name}"`);
+    return fail(
+      handlerNotReadyMessage({
+        app,
+        name,
+        groupRegistered: !!getHandlers(app),
+        anyWindowOpen: isWindowless(app) || windowsForGroup(app).some((k) => winState(k)?.isOpen),
+      }),
+    );
   }
+  const limit = invokeTimeout(app, name);
   try {
-    const limit = invokeTimeout(app, name);
     const res = await withTimeout(Promise.resolve(fn(args)), limit);
     const out = { ok: !!res?.ok, message: String(res?.message ?? (res?.ok ? "Done" : "Failed")) };
     if (typeof res?.data === "string" && res.data) out.data = res.data.length > DATA_MAX_CHARS ? `${res.data.slice(0, DATA_MAX_CHARS)}\u2026` : res.data;
@@ -269,7 +280,7 @@ async function doInvoke(action) {
     }
     return out;
   } catch (e) {
-    return fail(e?.message === "timed out" ? `${app}.${name} took longer than ${Math.round(invokeTimeout(app, name) / 1000)} seconds` : `${app}.${name} failed`);
+    return fail(e?.message === "timed out" ? `${app}.${name} took longer than ${Math.round(limit / 1000)} seconds` : `${app}.${name} failed`);
   }
 }
 
@@ -287,7 +298,9 @@ export function targetRect(action) {
       if (el) return rectOf(el);
     }
     let key = action.window;
-    if (action.type === "invoke") key = Object.keys(WINDOW_TO_GROUP).find((k) => WINDOW_TO_GROUP[k] === action.app && winState(k)?.isOpen);
+    if (action.type === "invoke") {
+      key = action.app === "ui" ? action.args?.window : isWindowless(action.app) ? null : Object.keys(WINDOW_TO_GROUP).find((k) => WINDOW_TO_GROUP[k] === action.app && winState(k)?.isOpen);
+    }
     if (action.type === "tile") key = action.windows?.[0] ?? Object.keys(store().windows).find((k) => winState(k)?.isOpen);
     const el = key ? windowElement(key) : null;
     if (el && isRendered(el)) return rectOf(el);

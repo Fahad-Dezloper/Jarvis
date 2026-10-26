@@ -11,7 +11,10 @@ export const FOLLOWUP_KINDS = ["project_summary", "search_report", "answer"];
 export function sanitizeFollowup(f) {
   if (!f || typeof f !== "object" || !FOLLOWUP_KINDS.includes(f.kind)) return null;
   const out = { kind: f.kind };
-  if (f.kind === "search_report") out.opened = !!f.opened;
+  if (f.kind === "search_report") {
+    out.opened = !!f.opened;
+    if (f.read) out.read = true;
+  }
   return out;
 }
 
@@ -74,7 +77,7 @@ export function summarizeProject(data) {
   return parts.join(" ");
 }
 
-function searchReply(obs, opened) {
+function searchReply(obs, opened, read) {
   if (opened) {
     const o = lastWith(obs, (x) => /open_result/.test(x.action));
     if (o) {
@@ -82,9 +85,13 @@ function searchReply(obs, opened) {
       const title = /Title:\s*(.+?)\s+(?:Date:|Source:|Authors?:|URL:)/.exec(raw)?.[1];
       const date = /Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/.exec(raw)?.[1];
       const source = /Source:\s*(.+?)\s+(?:URL:|Authors?:|Date:|$)/.exec(raw)?.[1];
+      const page = read ? lastWith(obs, (x) => /read_page/.test(x.action) && x.data) : null;
+      const pageText = page ? clean(page.data).slice(0, 350) : "";
+      const tail = pageText ? ` I can't summarise offline; the page starts: ${pageText}` : "";
       if (title) {
-        return truncate(`Opened "${title}"${date ? ` (${date})` : ""}${source ? ` from ${source}` : ""}.`, 300);
+        return truncate(`Opened "${title}"${date ? ` (${date})` : ""}${source ? ` from ${source}` : ""}.${tail}`, 600);
       }
+      if (pageText) return truncate(`${raw} ${tail}`, 600);
       return truncate(raw, 400);
     }
   }
@@ -113,11 +120,11 @@ export function resolveFollowup(followup, observations) {
       return { reply: summarizeProject(o.data), done: true };
     }
     case "search_report": {
-      const r = searchReply(obs, !!followup.opened);
+      const r = searchReply(obs, !!followup.opened, !!followup.read);
       return r ? { reply: r, done: true } : fail("any search results");
     }
     case "answer": {
-      const o = lastWith(obs, (x) => /^(calculator|weather|calendar|mail)\./.test(x.action));
+      const o = lastWith(obs, (x) => /^(calculator|weather|calendar|mail|desktop)\./.test(x.action));
       if (!o) return fail("an answer");
       const msg = clean(o.message);
       const data = o.data ? clean(o.data) : "";
