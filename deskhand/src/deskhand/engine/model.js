@@ -1,14 +1,35 @@
-// Model planner (server side only). Reads ANTHROPIC_API_KEY from the server
-// environment; the key never travels to or from the client and is never logged.
+// Model planner (server side only). Reads the provider key from the server
+// environment (ANTHROPIC_API_KEY, or GOOGLE_GENERATIVE_AI_API_KEY / GEMINI_API_KEY);
+// the key never travels to or from the client and is never logged.
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText, Output } from "ai";
 import { CAPABILITIES } from "../capabilities.js";
 import { MODEL_MAX_ACTIONS, WINDOW_KEYS, modelPlanSchema, planFromModelOutput } from "./schema.js";
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
+export const DEFAULT_GOOGLE_MODEL = "gemini-2.5-flash";
 export const MODEL_TIMEOUT_MS = 20_000;
 
-export const hasKey = () => Boolean(process.env.ANTHROPIC_API_KEY);
+const googleKey = () => process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
+
+/**
+ * Which provider to use. DESKHAND_PROVIDER ("anthropic" or "google") wins when
+ * its key exists; otherwise Anthropic if its key is set, else Google.
+ * @returns {{provider:"anthropic"|"google", apiKey:string}|null}
+ */
+export function resolveProvider() {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY || "";
+  const gKey = googleKey();
+  const wanted = (process.env.DESKHAND_PROVIDER || "").toLowerCase();
+  if (wanted === "google" && gKey) return { provider: "google", apiKey: gKey };
+  if (wanted === "anthropic" && anthropicKey) return { provider: "anthropic", apiKey: anthropicKey };
+  if (anthropicKey) return { provider: "anthropic", apiKey: anthropicKey };
+  if (gKey) return { provider: "google", apiKey: gKey };
+  return null;
+}
+
+export const hasKey = () => resolveProvider() !== null;
 
 function capabilityDoc() {
   return Object.entries(CAPABILITIES)
@@ -82,10 +103,17 @@ export function buildPrompt({ command, snapshot, history, observations, round })
  */
 export async function planWithModel(req, deps = {}) {
   const generate = deps.generate ?? generateText;
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey && !deps.generate) throw new Error("no key");
-  const modelId = process.env.DESKHAND_MODEL || DEFAULT_MODEL;
-  const model = deps.generate ? modelId : createAnthropic({ apiKey })(modelId);
+  const resolved = resolveProvider();
+  if (!resolved && !deps.generate) throw new Error("no key");
+  const defaultId = resolved?.provider === "google" ? DEFAULT_GOOGLE_MODEL : DEFAULT_MODEL;
+  const modelId = process.env.DESKHAND_MODEL || defaultId;
+  let model = modelId;
+  if (!deps.generate) {
+    model =
+      resolved.provider === "google"
+        ? createGoogleGenerativeAI({ apiKey: resolved.apiKey })(modelId)
+        : createAnthropic({ apiKey: resolved.apiKey })(modelId);
+  }
   const system = buildSystemPrompt();
   const prompt = buildPrompt(req);
 

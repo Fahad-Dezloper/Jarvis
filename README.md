@@ -39,7 +39,7 @@ Wispr Flow  ->  command bar  ->  snapshot of the desktop  ->  planner  ->  execu
 ```
 
 - **Wispr Flow only types text into whichever field has focus.** Jarvis has no speech code of its own. The app adds the structure: it reads the desktop, plans a short sequence of actions, and shows each step.
-- **Planner:** Claude through the Vercel AI SDK with structured output, validated against an allowlist of actions. With no API key (or if the model fails) an offline rules parser handles common commands, so the demo always works.
+- **Planner:** Claude or Gemini through the Vercel AI SDK with structured output, validated against an allowlist of actions. With no API key (or if the model fails) an offline rules parser handles common commands, so the demo always works.
 - **Executor:** window actions go through the desktop store; apps expose handlers (terminal, notes, browser, music, settings, finder); any other app can still be clicked and typed into through a generic scan of on-screen controls.
 - **Safety:** model output is validated against a fixed set of actions. Page and app text is treated as data, never as instructions.
 
@@ -70,7 +70,7 @@ Checks: `npm run check:engine`, `check:apps`, `check:ui`.
 
 ### Deploy on Vercel
 
-Import the repository, set **Root Directory** to `deskhand`, and add `ANTHROPIC_API_KEY` (and optionally `DESKHAND_MODEL`) as environment variables. Keep the key server-side and put a spending limit on it.
+Import the repository, set **Root Directory** to `deskhand`, and add either `ANTHROPIC_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` (and optionally `DESKHAND_PROVIDER` or `DESKHAND_MODEL`) as environment variables. Keep the key server-side and put a spending limit on it.
 
 ## Also in this repo: Motion Brief
 
