@@ -74,6 +74,7 @@ const SafariSection = () => {
           enabledSections={safari.enabledSections}
           setEnabledSections={safari.setEnabledSections}
           isIframeable={safari.isIframeable}
+          onPageTitle={safari.setPageTitle}
           readerFont={safari.readerFont}
           setReaderFont={safari.setReaderFont}
           readerTheme={safari.readerTheme}
@@ -169,6 +170,7 @@ const SafariSection = () => {
           enabledSections={safari.enabledSections}
           setEnabledSections={safari.setEnabledSections}
           isIframeable={safari.isIframeable}
+          onPageTitle={safari.setPageTitle}
           readerFont={safari.readerFont}
           setReaderFont={safari.setReaderFont}
           readerTheme={safari.readerTheme}

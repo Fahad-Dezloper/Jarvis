@@ -36,6 +36,7 @@ const SafariContentView = ({
   enabledSections = {},
   _setEnabledSections,
   isIframeable,
+  onPageTitle,
   readerFont,
   setReaderFont,
   readerTheme,
@@ -916,7 +917,7 @@ root.render(<App />);`}</div>
 
   // 3a. In-app search results and article pages (shared with Chrome)
   if (isInternalUrl(activeTab.url)) {
-    return <InternalPage url={activeTab.url} navigate={navigateTabTo} />;
+    return <InternalPage url={activeTab.url} navigate={navigateTabTo} onTitle={onPageTitle} />;
   }
 
   // 3b. Built-in pages that need no network

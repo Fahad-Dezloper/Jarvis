@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import useWindowsStore from "@store/window";
 import "../../devBridge";
 import { DEFAULT_BOOKMARKS, IFRAME_COMPATIBLE_SITES, MOCK_HISTORY } from "../data";
-import { ARTIFACT_URL, START_URL, findMockPage } from "../data/pages";
+import { ARTIFACT_URL, HN_URL, START_URL, findMockPage } from "../data/pages";
 import { registerBrowserController } from "../../chrome/browserHandlers";
-import { titleForInternalUrl } from "../../chrome/browserStore";
-import { isInternalUrl } from "../../chrome/searchCore";
+import { reloadInternal, titleForInternalUrl } from "../../chrome/browserStore";
+import { isInternalUrl, pageUrl, searchUrl } from "../../chrome/searchCore";
 
 // The browser opens on the built-in shared artifact; Back leads to the start page.
 const makeInitialTab = () => ({
@@ -162,22 +162,40 @@ const useSafari = () => {
 
     const lowerQuery = targetUrl.toLowerCase();
     let isRedirected = false;
-    const mockHit = findMockPage(targetUrl);
+    // The real Hacker News front page is not the invented one.
+    const found = findMockPage(targetUrl);
+    const mockHit = found && found.url !== HN_URL ? found : null;
 
     if (isInternalUrl(targetUrl)) {
       isRedirected = true;
     } else if (mockHit) {
       targetUrl = mockHit.url;
       isRedirected = true;
-    } else if (lowerQuery.includes("wikipedia")) {
+    } else if (/^(www\.)?wikipedia(\.org)?$/.test(lowerQuery)) {
       targetUrl = "https://en.wikipedia.org";
       isRedirected = true;
-    } else if (lowerQuery.includes("map")) {
+    } else if (/^(maps?|openstreetmap(\.org)?)$/.test(lowerQuery)) {
       targetUrl = "https://openstreetmap.org";
       isRedirected = true;
     }
 
-    if (!isRedirected && !targetUrl.startsWith("safari://")) {
+    // A search-engine results URL becomes a real in-app search (those pages cannot be framed).
+    if (/^https?:\/\//i.test(targetUrl)) {
+      try {
+        const u = new URL(targetUrl);
+        const q = u.searchParams.get("q") || u.searchParams.get("p");
+        if (
+          q &&
+          /(^|\.)(google|bing|duckduckgo|yahoo)\.[a-z.]+$/.test(u.hostname) &&
+          /search|^\/$/.test(u.pathname)
+        )
+          targetUrl = searchUrl(q, "web");
+      } catch {
+        /* keep the URL */
+      }
+    }
+
+    if (!isRedirected && !isInternalUrl(targetUrl) && !targetUrl.startsWith("safari://")) {
       if (!/^https?:\/\//i.test(targetUrl)) {
         const isLocal =
           lowerQuery.startsWith("localhost") ||
@@ -197,17 +215,19 @@ const useSafari = () => {
         } else if (targetUrl.includes(".") && !targetUrl.includes(" ")) {
           targetUrl = "https://" + targetUrl;
         } else {
-          // search query: convert to google search URL
-          targetUrl = `https://www.google.com/search?q=${encodeURIComponent(targetUrl)}`;
+          // search text: real results through the search API
+          targetUrl = searchUrl(targetUrl, "web");
         }
       }
     }
 
-    // Intercept any URLs/searches that are not iframeable
-    if (!targetUrl.startsWith("safari://") && !isIframeable(targetUrl)) {
-      setSearchQuery(targetUrl);
-      setShowSearchAlert(true);
-      return;
+    // Sites that cannot be framed are shown in the reader view instead of being blocked.
+    if (
+      /^https?:\/\//i.test(targetUrl) &&
+      (!isIframeable(targetUrl) || (found && !mockHit)) &&
+      !mockHit
+    ) {
+      targetUrl = pageUrl(targetUrl);
     }
 
     setTabs((prevTabs) =>
@@ -376,7 +396,16 @@ const useSafari = () => {
     }
   };
 
+  const setPageTitle = useCallback((url, title) => {
+    setTabs((prev) =>
+      prev.some((t) => t.url === url && t.title !== title)
+        ? prev.map((t) => (t.url === url ? { ...t, title } : t))
+        : prev,
+    );
+  }, []);
+
   const handleReload = () => {
+    if (reloadInternal(activeTab.url)) return;
     // Simulated reload effect
     const prevUrl = activeTab.url;
     navigateTabTo("safari://start");
@@ -462,6 +491,7 @@ const useSafari = () => {
     activeTab,
     isBookmarked,
     navigateTabTo,
+    setPageTitle,
     handleNewTab,
     handleCloseTab,
     handleGoBack,

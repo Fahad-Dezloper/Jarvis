@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useWindowsStore from "@store/window";
 import { registerBrowserController } from "../browserHandlers";
-import { titleForInternalUrl } from "../browserStore";
-import { findMockPage, resolveTarget } from "../../safari/data/pages";
-import { isInternalUrl, searchUrl } from "../searchCore";
+import { reloadInternal, titleForInternalUrl } from "../browserStore";
+import { HN_URL, findMockPage } from "../../safari/data/pages";
+import { isInternalUrl, pageUrl, searchUrl } from "../searchCore";
 
 export const NEWTAB = "chrome://newtab";
 
@@ -33,10 +33,12 @@ export function resolveInput(input) {
   const raw = String(input || "").trim();
   if (!raw) return null;
   if (isInternalUrl(raw) || raw === NEWTAB) return raw;
-  const hit = resolveTarget(raw);
-  if (hit && hit.url !== "safari://start") return hit.url;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw)) return `https://${raw}`;
+  // Built-in demo pages are only reached by their exact URL; everything else is the real web.
+  // (The real Hacker News front page is not the invented one.)
+  const mock = findMockPage(raw);
+  if (mock && mock.kind !== "start" && mock.url !== HN_URL) return mock.url;
+  if (/^https?:\/\/\S+$/i.test(raw)) return pageUrl(raw);
+  if (/^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]\S*)?$/.test(raw)) return pageUrl(`https://${raw}`);
   return searchUrl(raw, "web");
 }
 
@@ -65,6 +67,18 @@ export default function useChrome() {
       }),
     );
   };
+
+  const reload = () => {
+    if (!reloadInternal(activeTab.url)) navigate(activeTab.url);
+  };
+
+  const setTitle = useCallback((url, title) => {
+    setTabs((prev) =>
+      prev.some((t) => t.url === url && t.title !== title)
+        ? prev.map((t) => (t.url === url ? { ...t, title } : t))
+        : prev,
+    );
+  }, []);
 
   const go = (delta) =>
     setTabs((prev) =>
@@ -120,6 +134,8 @@ export default function useChrome() {
     navigate,
     back: () => go(-1),
     forward: () => go(1),
+    reload,
+    setTitle,
     newTab,
     closeTab,
   };

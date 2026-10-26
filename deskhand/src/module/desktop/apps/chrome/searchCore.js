@@ -204,7 +204,8 @@ export function buildResults(q, source, live = {}) {
   let offline = false;
   if (source === "web") {
     results = webResults(query);
-    notes.push("Demo web index: invented pages, not the real web.");
+    offline = true;
+    notes.push("Offline sample: invented pages, not the real web.");
   } else {
     const wantsParadigm = isParadigmQuery(query);
     if (wantsParadigm) {
@@ -293,7 +294,12 @@ export function selectResult(results, which) {
 
 /** Numbered lines for HandlerResult.data: '1. Title | date | url'. */
 export function formatResultsData(results) {
-  return results.map((r, i) => `${i + 1}. ${r.title} | ${r.date || "n.d."} | ${r.url}`).join("\n");
+  return results
+    .map((r, i) => {
+      const snip = String(r.snippet || "").replace(/\s+/g, " ").trim().slice(0, 110);
+      return `${i + 1}. ${r.title} | ${r.date || "n.d."} | ${r.url}${snip ? ` | ${snip}` : ""}`;
+    })
+    .join("\n");
 }
 
 export function articleText(a) {
@@ -307,7 +313,7 @@ export function articleText(a) {
 
 export function resultsText(set) {
   if (!set) return "";
-  const head = `Search results for "${set.query}" (${set.source === "papers" ? "papers" : "web"})`;
+  const head = `Search results for "${set.query}" (${set.source || "web"}${set.provider ? `, via ${set.provider}` : ""})`;
   const body = set.results
     .map((r, i) => `${i + 1}. ${r.title}\n   ${r.source} | ${r.date || "n.d."}\n   ${r.snippet}`)
     .join("\n");
@@ -319,18 +325,30 @@ export function resultsText(set) {
 export const searchUrl = (q, source = "web") =>
   `jarvis://search?q=${encodeURIComponent(q)}&source=${source}`;
 export const articleUrl = (id) => `jarvis://article?id=${encodeURIComponent(id)}`;
+export const pageUrl = (url) => `jarvis://page?url=${encodeURIComponent(url)}`;
+export const isHttpUrl = (u) => /^https?:\/\/[^\s]+$/i.test(String(u || ""));
+export const SEARCH_SOURCES = ["web", "news", "papers"];
+export const normalizeSource = (s) => {
+  const t = String(s ?? "").toLowerCase();
+  if (/paper|research|arxiv|scholar|stud(y|ies)|academic/.test(t)) return "papers";
+  if (/news|latest|headline/.test(t)) return "news";
+  return "web";
+};
 export const isInternalUrl = (url) => /^jarvis:\/\//i.test(String(url || ""));
 
 export function parseInternalUrl(url) {
-  const m = String(url || "").match(/^jarvis:\/\/(search|article)\?(.*)$/i);
+  const m = String(url || "").match(/^jarvis:\/\/(search|article|page)\?(.*)$/i);
   if (!m) return null;
   const p = new URLSearchParams(m[2]);
-  if (m[1].toLowerCase() === "search") {
+  const kind = m[1].toLowerCase();
+  if (kind === "search") {
+    const src = p.get("source");
     return {
       type: "search",
       q: p.get("q") || "",
-      source: p.get("source") === "papers" ? "papers" : "web",
+      source: SEARCH_SOURCES.includes(src) ? src : "web",
     };
   }
+  if (kind === "page") return { type: "page", url: p.get("url") || "" };
   return { type: "article", id: p.get("id") || "" };
 }

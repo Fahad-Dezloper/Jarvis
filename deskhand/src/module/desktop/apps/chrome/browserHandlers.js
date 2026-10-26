@@ -7,17 +7,21 @@ import "../devBridge";
 import { registerHandlers, registerSummary } from "@deskhand/bridge";
 import { copyText } from "../safari/clipboard";
 import {
+  HN_URL,
   START_URL,
   findMockPage,
   isCurrentPageRef,
   pickLink,
   resolveTarget,
 } from "../safari/data/pages";
-import useBrowserStore, { runSearch } from "./browserStore";
+import useBrowserStore, { loadPage, runSearch } from "./browserStore";
 import {
   articleText,
   articleUrl,
   formatResultsData,
+  isHttpUrl,
+  normalizeSource,
+  pageUrl,
   parseInternalUrl,
   resultsText,
   searchUrl,
@@ -27,6 +31,10 @@ import {
 const controllers = new Map(); // window key -> () => controller
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MAX_TEXT = 6000;
+const OPEN_TEXT = 3000;
+const HANDLER_TIMEOUT_MS = 12_000;
+const PAGE_WAIT_MS = 10_000;
+const isFileLike = (u) => /\.(pdf|zip|png|jpe?g|gif|mp4|mp3|dmg|exe)(\?|$)/i.test(String(u));
 
 /** controller: { navigate(url), back(), tab() -> {title,url,historyIndex} } */
 export function registerBrowserController(key, getController) {
@@ -63,12 +71,47 @@ async function ensureBrowser() {
 
 const fail = (message) => ({ ok: false, message });
 const guard = (fn) => async (args) => {
+  let timer;
   try {
-    return await fn(args || {});
+    return await Promise.race([
+      fn(args || {}),
+      new Promise((resolve) => {
+        timer = setTimeout(
+          () =>
+            resolve(
+              fail(`The browser took too long (over ${HANDLER_TIMEOUT_MS / 1000} seconds). Try again.`),
+            ),
+          HANDLER_TIMEOUT_MS,
+        );
+      }),
+    ]);
   } catch (err) {
     return fail(`Browser error: ${err?.message || err}`);
+  } finally {
+    clearTimeout(timer);
   }
 };
+
+/** Wait for a reader page, but never longer than PAGE_WAIT_MS. Resolves to the entry or null. */
+const waitPage = (url) => Promise.race([loadPage(url), sleep(PAGE_WAIT_MS).then(() => null)]);
+
+/** jarvis://page?url=X -> X, anything else unchanged. */
+const realUrl = (u) => {
+  const p = parseInternalUrl(u);
+  return p?.type === "page" ? p.url : u;
+};
+
+/** Header lines plus the page text, for HandlerResult.data. */
+function readerText(d, max) {
+  const head = [
+    `Title: ${d.title}`,
+    d.siteName ? `Source: ${d.siteName}` : "",
+    d.byline ? `By: ${d.byline}` : "",
+    d.date ? `Date: ${d.date}` : "",
+    `URL: ${d.url}`,
+  ].filter(Boolean);
+  return `${head.join("\n")}\n\n${d.text || ""}`.slice(0, max);
+}
 
 function visibleLinks(ctl) {
   const out = [];
@@ -89,6 +132,10 @@ function pageText(ctl) {
   let body;
   if (p?.type === "search") {
     body = resultsText(useBrowserStore.getState().getSearch(p.q, p.source));
+  } else if (p?.type === "page") {
+    const e = useBrowserStore.getState().getPage(p.url);
+    if (e?.status === "ok") return readerText(e.data, MAX_TEXT);
+    body = e?.status === "error" ? `This page could not be read: ${e.error?.message}` : "The page is still loading.";
   } else if (p?.type === "article") {
     body = articleText(useBrowserStore.getState().getArticle(p.id));
   } else {
@@ -107,24 +154,24 @@ const handlers = {
   search: guard(async ({ query, source }) => {
     const q = String(query ?? "").trim();
     if (!q) return fail("No search query was given.");
-    const src = /paper|research|arxiv|scholar|study|studies/i.test(String(source ?? ""))
-      ? "papers"
-      : "web";
+    const src = normalizeSource(source);
     const ctl = await ensureBrowser();
     if (!ctl) return fail("Could not open a browser window.");
     const set = await runSearch(q, src);
     ctl.navigate(searchUrl(set.query, src));
     const n = set.results.length;
+    const label = src === "papers" ? "paper" : src === "news" ? "news" : "web";
+    const via = set.provider ? ` via ${set.provider}` : "";
     const note = set.notes.length ? ` (${set.notes.join(" ")})` : "";
     if (!n)
       return {
         ok: true,
-        message: `No results for "${set.query}" in ${src === "papers" ? "papers" : "the demo web index"}.${note}`,
+        message: `No ${label} results for "${set.query}"${via}.${note}`,
         data: "No results.",
       };
     return {
       ok: true,
-      message: `Showing ${n} ${src === "papers" ? "paper" : "web"} results for "${set.query}".${note}`,
+      message: `Showing ${n} ${label} results for "${set.query}"${via}.${note}`,
       data: formatResultsData(set.results),
     };
   }),
@@ -138,28 +185,66 @@ const handlers = {
     const ctl = await ensureBrowser();
     if (!ctl) return fail("Could not open a browser window.");
     const r = hit.result;
+    const num = hit.index + 1;
+    const summaryOf = () =>
+      [
+        `Title: ${r.title}`,
+        `Date: ${r.date || "n.d."}`,
+        `Source: ${r.source}`,
+        r.authors?.length ? `Authors: ${r.authors.join(", ")}` : "",
+        `URL: ${r.url}`,
+        "",
+        r.abstract || r.snippet,
+      ]
+        .filter((x) => x !== "")
+        .join("\n")
+        .slice(0, MAX_TEXT);
+
+    // Real web page: show it through the reader and hand back its text.
+    if (r.kind === "web" && !r.demo && isHttpUrl(r.url)) {
+      const pending = loadPage(r.url);
+      ctl.navigate(pageUrl(r.url));
+      const entry = await Promise.race([pending, sleep(PAGE_WAIT_MS).then(() => null)]);
+      if (entry?.status === "ok") {
+        const d = entry.data;
+        return {
+          ok: true,
+          message: `Opened result ${num}: ${d.title || r.title} (${d.siteName || r.source}).`,
+          data: readerText(d, OPEN_TEXT),
+        };
+      }
+      if (entry?.status === "error")
+        return {
+          ok: false,
+          message: `Opened result ${num} (${r.title}) but could not read it: ${entry.error?.message} The original can be opened in a new tab.`,
+          data: summaryOf(),
+        };
+      return {
+        ok: true,
+        message: `Opened result ${num}: ${r.title}. It is still loading.`,
+        data: summaryOf(),
+      };
+    }
+
+    // Curated entries (papers, Paradigm, offline sample) show their abstract page.
     ctl.navigate(articleUrl(r.id));
-    const text = [
-      `Title: ${r.title}`,
-      `Date: ${r.date || "n.d."}`,
-      `Source: ${r.source}`,
-      r.authors?.length ? `Authors: ${r.authors.join(", ")}` : "",
-      `URL: ${r.url}`,
-      "",
-      r.abstract || r.snippet,
-    ]
-      .filter((x) => x !== "")
-      .join("\n");
     return {
       ok: true,
-      message: `Opened result ${hit.index + 1}: ${r.title} (${r.date || "n.d."}).`,
-      data: text.slice(0, MAX_TEXT),
+      message: `Opened result ${num}: ${r.title} (${r.date || "n.d."}).`,
+      data: summaryOf(),
     };
   }),
 
   read_page: guard(async () => {
     const ctl = await ensureBrowser();
     if (!ctl) return fail("No browser window is open.");
+    const p = parseInternalUrl(ctl.tab().url);
+    if (p?.type === "page") {
+      const entry = await waitPage(p.url);
+      if (entry?.status === "error")
+        return fail(`This page could not be read: ${entry.error?.message}`);
+      if (!entry) return fail("The page is still loading. Try again in a moment.");
+    }
     const text = pageText(ctl);
     return { ok: true, message: `Read the page "${ctl.tab().title}".`, data: text };
   }),
@@ -169,12 +254,51 @@ const handlers = {
     if (!target) return fail("No page or link was given.");
     const ctl = await ensureBrowser();
     if (!ctl) return fail("Could not open a browser window.");
-    const hit = resolveTarget(target, visibleLinks(ctl));
+    let hit = resolveTarget(target, visibleLinks(ctl));
+    // A literal real address is never swapped for the invented Hacker News page.
+    if (hit && hit.via === "url" && hit.url === HN_URL && isHttpUrl(target)) hit = null;
     const dest = hit ? hit.url : target;
-    ctl.navigate(dest);
     const mock = findMockPage(dest);
-    const what = mock ? mock.title : dest === START_URL ? "the start page" : dest;
-    return { ok: true, message: `Opened ${what}.` };
+    if (mock || dest === START_URL || hit?.url.startsWith("safari://")) {
+      ctl.navigate(dest);
+      return {
+        ok: true,
+        message: `Opened ${mock ? mock.title : dest === START_URL ? "the start page" : dest}.`,
+      };
+    }
+    // A real address (typed, or a link on the page): load it through the reader.
+    let web = null;
+    const asPage = parseInternalUrl(dest);
+    if (asPage?.type === "page") web = asPage.url;
+    else if (isHttpUrl(dest)) web = dest;
+    else if (/^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]\S*)?$/.test(dest)) web = `https://${dest}`;
+    if (web) {
+      if (isFileLike(web))
+        return fail(`That link looks like a file, not a web page. Open ${web} in a new tab instead.`);
+      const pending = loadPage(web);
+      ctl.navigate(pageUrl(web));
+      const entry = await Promise.race([pending, sleep(PAGE_WAIT_MS).then(() => null)]);
+      if (entry?.status === "ok")
+        return {
+          ok: true,
+          message: `Opened ${entry.data.title || web}.`,
+          data: readerText(entry.data, OPEN_TEXT),
+        };
+      if (entry?.status === "error")
+        return {
+          ok: false,
+          message: `Opened ${web} but could not read it: ${entry.error?.message} The original can be opened in a new tab.`,
+        };
+      return { ok: true, message: `Opened ${web}. It is still loading.` };
+    }
+    // Not an address: treat it as a search.
+    const set = await runSearch(target, "web");
+    ctl.navigate(searchUrl(set.query, "web"));
+    return {
+      ok: true,
+      message: `"${target}" is not a web address, so I searched for it${set.provider ? ` via ${set.provider}` : ""}.`,
+      data: formatResultsData(set.results),
+    };
   }),
 
   copy_link: guard(async ({ element }) => {
@@ -186,10 +310,12 @@ const handlers = {
     let label = current.title;
     const p = parseInternalUrl(current.url);
     if (p?.type === "article") url = useBrowserStore.getState().getArticle(p.id)?.url || url;
+    if (p?.type === "page") url = p.url;
+    if (p?.type === "search") return fail("A search results page has no shareable link.");
     if (el && !isCurrentPageRef(el)) {
       const link = pickLink(el, visibleLinks(ctl));
       if (link) {
-        url = link.url;
+        url = realUrl(link.url);
         label = link.label;
       } else if (pickLink(el, [{ label: current.title, url: current.url }], 30)) {
         /* current page */
@@ -236,9 +362,14 @@ if (typeof window !== "undefined") {
       const set = useBrowserStore.getState().getSearch(p.q, p.source);
       const list = (set?.results || [])
         .slice(0, 6)
-        .map((r, i) => `${i + 1}. ${r.title} (${r.date})`)
+        .map((r, i) => `${i + 1}. ${r.title} (${r.date || "n.d."})`)
         .join("; ");
-      return `${name} is showing search results for "${p.q}" (${p.source}): ${list || "none"}.`;
+      return `${name} is showing search results for "${p.q}" (${p.source}${set?.provider ? `, via ${set.provider}` : ""}): ${list || "none"}.`;
+    }
+    if (p?.type === "page") {
+      const e = useBrowserStore.getState().getPage(p.url);
+      const state = e?.status === "ok" ? "reader view" : e?.status === "error" ? "could not be read" : "loading";
+      return `${name} is showing "${tab.title}" at ${p.url} (${state}).`;
     }
     return `${name} is showing "${tab.title}" at ${tab.url}. ${tab.historyIndex > 0 ? "Back is available." : "No earlier page."}`;
   });

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Search as SearchIcon, FileText } from "lucide-react";
+import { ExternalLink, Search as SearchIcon, FileText, BookOpen, Globe } from "lucide-react";
 import useBrowserStore, { runSearch } from "../../browserStore";
-import { articleUrl, parseInternalUrl, searchUrl } from "../../searchCore";
+import { articleUrl, pageUrl, parseInternalUrl, searchUrl } from "../../searchCore";
+import { ReaderPage, favicon } from "./ReaderPage";
 
 // Real <a> elements so voice commands can match the visible title.
 const Anchor = ({ url, navigate, className, children }) => (
@@ -34,12 +35,53 @@ const Badge = ({ r }) => {
         arXiv paper
       </span>
     );
+  if (r.demo)
+    return (
+      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
+        Offline sample
+      </span>
+    );
+  return null;
+};
+
+/** Where a result opens: real web pages through the reader, curated entries as an abstract page. */
+const resultTarget = (r) => (r.kind === "web" && !r.demo ? pageUrl(r.url) : articleUrl(r.id));
+
+const SOURCES = [
+  ["web", "Web"],
+  ["news", "News"],
+  ["papers", "Papers"],
+];
+
+const ProviderLabel = ({ set }) => {
+  if (!set?.provider) return null;
+  const offline = set.offline || /offline/i.test(set.provider);
   return (
-    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 border border-gray-200">
-      Demo page
+    <span
+      title={offline ? "The search service could not be reached." : "Where these results came from"}
+      className={`inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${offline ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}
+    >
+      via {set.provider}
     </span>
   );
 };
+
+const Favicon = ({ site }) =>
+  site ? (
+    <img
+      src={favicon(site)}
+      alt=""
+      width={16}
+      height={16}
+      referrerPolicy="no-referrer"
+      className="w-4 h-4 rounded-sm shrink-0"
+      onError={(e) => {
+        e.currentTarget.style.visibility = "hidden";
+      }}
+    />
+  ) : (
+    <Globe size={14} className="text-gray-400 shrink-0" />
+  );
 
 export const SearchResultsPage = ({ url, navigate }) => {
   const p = parseInternalUrl(url);
@@ -47,17 +89,19 @@ export const SearchResultsPage = ({ url, navigate }) => {
   const [draft, setDraft] = useState(p.q);
   const [busy, setBusy] = useState(false);
 
+  const hasSet = Boolean(set);
   useEffect(() => {
     setDraft(p.q);
-    if (!useBrowserStore.getState().getSearch(p.q, p.source)) {
-      let alive = true;
-      setBusy(true);
-      runSearch(p.q, p.source).finally(() => alive && setBusy(false));
-      return () => {
-        alive = false;
-      };
-    }
   }, [p.q, p.source]);
+  useEffect(() => {
+    if (hasSet) return;
+    let alive = true;
+    setBusy(true);
+    runSearch(p.q, p.source).finally(() => alive && setBusy(false));
+    return () => {
+      alive = false;
+    };
+  }, [p.q, p.source, hasSet]);
 
   const go = (q, source) => q.trim() && navigate(searchUrl(q.trim(), source));
 
@@ -91,10 +135,7 @@ export const SearchResultsPage = ({ url, navigate }) => {
         </form>
       </div>
       <div className="flex gap-5 px-6 text-[13px] border-b border-gray-200">
-        {[
-          ["web", "Web"],
-          ["papers", "Papers"],
-        ].map(([id, label]) => (
+        {SOURCES.map(([id, label]) => (
           <button
             key={id}
             onClick={() => go(p.q, id)}
@@ -108,10 +149,18 @@ export const SearchResultsPage = ({ url, navigate }) => {
         {busy && !set && <p className="text-sm text-gray-500">Searching...</p>}
         {set && (
           <>
-            <p className="text-xs text-gray-500 mb-1">
-              {set.results.length} result{set.results.length === 1 ? "" : "s"} for "{set.query}"
-              {p.source === "papers" ? ", newest first within each source" : ""}
+            <p className="text-xs text-gray-500 mb-1 flex items-center gap-2 flex-wrap">
+              <span>
+                {set.results.length} result{set.results.length === 1 ? "" : "s"} for "{set.query}"
+                {p.source === "papers" ? ", newest first within each source" : ""}
+              </span>
+              <ProviderLabel set={set} />
             </p>
+            {set.summary && (
+              <p className="text-[13px] text-gray-700 bg-blue-50/60 border border-blue-100 rounded-lg px-3 py-2 my-2 leading-relaxed">
+                {set.summary}
+              </p>
+            )}
             {set.notes.map((n) => (
               <p
                 key={n}
@@ -120,11 +169,6 @@ export const SearchResultsPage = ({ url, navigate }) => {
                 {n}
               </p>
             ))}
-            {set.offline && (
-              <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2 inline-block">
-                offline snapshot
-              </p>
-            )}
             <ol className="mt-3 space-y-5">
               {set.results.map((r, i) => (
                 <li key={r.id} data-result-index={i + 1}>
@@ -132,24 +176,31 @@ export const SearchResultsPage = ({ url, navigate }) => {
                     <span className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-semibold text-gray-500">
                       {i + 1}
                     </span>
-                    <span>{r.source}</span>
-                    <span className="text-gray-300">|</span>
-                    <span>{r.date || "n.d."}</span>
+                    <Favicon site={r.site} />
+                    <span className="truncate max-w-[16rem]">{r.source}</span>
+                    {r.date && (
+                      <>
+                        <span className="text-gray-300">|</span>
+                        <span>{r.date}</span>
+                      </>
+                    )}
                     <Badge r={r} />
                   </div>
                   <Anchor
-                    url={articleUrl(r.id)}
+                    url={resultTarget(r)}
                     navigate={navigate}
                     className="text-[17px] text-blue-700 hover:underline leading-snug block"
                   >
                     {r.title}
                   </Anchor>
-                  <p className="text-[13px] text-gray-700 leading-relaxed mt-0.5">{r.snippet}</p>
+                  {r.snippet && (
+                    <p className="text-[13px] text-gray-700 leading-relaxed mt-0.5">{r.snippet}</p>
+                  )}
                 </li>
               ))}
               {!set.results.length && (
                 <li className="text-sm text-gray-500">
-                  No results. Try different words, or switch between Web and Papers.
+                  No results. Try different words, or switch between Web, News and Papers.
                 </li>
               )}
             </ol>
@@ -160,7 +211,7 @@ export const SearchResultsPage = ({ url, navigate }) => {
   );
 };
 
-export const ArticlePage = ({ url }) => {
+export const ArticlePage = ({ url, navigate }) => {
   const p = parseInternalUrl(url);
   const a = useBrowserStore((s) => s.getArticle(p.id));
   if (!a)
@@ -200,7 +251,16 @@ export const ArticlePage = ({ url }) => {
             {para}
           </p>
         ))}
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-6 flex items-center gap-3 flex-wrap">
+          {!a.demo && /^https?:/i.test(a.url) && (
+            <button
+              onClick={() => navigate?.(pageUrl(a.url))}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border border-blue-600 text-blue-700 hover:bg-blue-50"
+            >
+              <BookOpen size={14} /> Read full page
+            </button>
+          )}
           <a
             href={a.url}
             target="_blank"
@@ -213,16 +273,17 @@ export const ArticlePage = ({ url }) => {
           <span className="text-xs text-gray-400 break-all">{a.url}</span>
         </div>
         {a.demo && (
-          <p className="text-[11px] text-gray-400 mt-6">Demo page from the offline web index.</p>
+          <p className="text-[11px] text-gray-400 mt-6">Offline sample page (invented), shown because the search service could not be reached.</p>
         )}
       </article>
     </div>
   );
 };
 
-export const InternalPage = ({ url, navigate }) => {
+export const InternalPage = ({ url, navigate, onTitle }) => {
   const p = parseInternalUrl(url);
   if (p?.type === "search") return <SearchResultsPage url={url} navigate={navigate} />;
-  if (p?.type === "article") return <ArticlePage url={url} />;
+  if (p?.type === "page") return <ReaderPage url={url} navigate={navigate} onTitle={onTitle} />;
+  if (p?.type === "article") return <ArticlePage url={url} navigate={navigate} />;
   return null;
 };

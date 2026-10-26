@@ -7,7 +7,6 @@ import {
   X,
   Search,
   Lock,
-  ExternalLink,
   Globe,
 } from "lucide-react";
 import WindowControls from "@components/WindowControls";
@@ -16,9 +15,16 @@ import MockPage from "@module/desktop/apps/safari/ui/components/MockPages";
 import { findMockPage } from "../../../safari/data/pages";
 import useChrome, { NEWTAB } from "../../hooks/useChrome";
 import { InternalPage } from "./InternalPages";
-import { isInternalUrl } from "../../searchCore";
+import { isHttpUrl, isInternalUrl, pageUrl, parseInternalUrl } from "../../searchCore";
 
-const displayUrl = (url) => (url === NEWTAB ? "" : url);
+// What the address bar shows: the real address for a reader page, the query for a search.
+const displayUrl = (url) => {
+  if (url === NEWTAB) return "";
+  const p = parseInternalUrl(url);
+  if (p?.type === "page") return p.url;
+  if (p?.type === "search") return p.q;
+  return url;
+};
 
 const NewTab = ({ navigate }) => {
   const [q, setQ] = useState("");
@@ -47,15 +53,15 @@ const NewTab = ({ navigate }) => {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Search the demo web, or type a URL"
+          placeholder="Search the web, or type a URL"
           className="flex-1 outline-none text-sm bg-transparent"
         />
       </form>
       <div className="flex gap-3 text-xs">
         {[
-          ["Hacker News", "hacker news"],
-          ["Poker odds", "poker-odds"],
-          ["orbit-todo repo", "github"],
+          ["Hacker News", "https://news.ycombinator.com"],
+          ["Wikipedia", "https://en.wikipedia.org/wiki/Prediction_market"],
+          ["Prediction market research", "prediction market research"],
         ].map(([label, target]) => (
           <button
             key={label}
@@ -70,33 +76,10 @@ const NewTab = ({ navigate }) => {
   );
 };
 
-const External = ({ url }) => (
-  <div className="h-full flex flex-col" data-dk-content>
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-800">
-      <Globe size={13} /> Many sites refuse to load inside another page.
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="ml-auto inline-flex items-center gap-1 underline"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        Open in a new tab <ExternalLink size={12} />
-      </a>
-    </div>
-    <iframe
-      src={url}
-      title={url}
-      className="flex-1 w-full border-0 bg-white"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-    />
-  </div>
-);
-
-const Content = ({ tab, navigate }) => {
+const Content = ({ tab, navigate, onTitle }) => {
   const url = tab.url;
   if (url === NEWTAB) return <NewTab navigate={navigate} />;
-  if (isInternalUrl(url)) return <InternalPage url={url} navigate={navigate} />;
+  if (isInternalUrl(url)) return <InternalPage url={url} navigate={navigate} onTitle={onTitle} />;
   const mock = findMockPage(url);
   if (mock)
     return (
@@ -104,7 +87,9 @@ const Content = ({ tab, navigate }) => {
         <MockPage page={mock} navigate={navigate} />
       </div>
     );
-  return <External url={url} />;
+  // Any other http(s) address is shown through the reader, never in an iframe.
+  if (isHttpUrl(url)) return <InternalPage url={pageUrl(url)} navigate={navigate} onTitle={onTitle} />;
+  return <NewTab navigate={navigate} />;
 };
 
 const Chrome = () => {
@@ -175,7 +160,7 @@ const Chrome = () => {
           <ArrowRight size={15} />
         </button>
         <button
-          onClick={() => c.navigate(c.activeTab.url)}
+          onClick={c.reload}
           className="p-1.5 rounded-full hover:bg-gray-100"
           aria-label="Reload"
         >
@@ -185,7 +170,7 @@ const Chrome = () => {
           className="flex-1 flex items-center gap-2 bg-[#f1f3f4] hover:bg-[#e8eaed] focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500 rounded-full px-3 py-1.5"
           onSubmit={(e) => {
             e.preventDefault();
-            c.navigate(draft);
+            if (draft !== displayUrl(c.activeTab.url)) c.navigate(draft);
           }}
         >
           <Lock size={12} className="text-gray-500 shrink-0" />
@@ -201,7 +186,7 @@ const Chrome = () => {
         </form>
       </div>
       <div className="flex-1 min-h-0 overflow-auto bg-white select-text">
-        <Content tab={c.activeTab} navigate={c.navigate} />
+        <Content tab={c.activeTab} navigate={c.navigate} onTitle={c.setTitle} />
       </div>
     </div>
   );

@@ -1,20 +1,16 @@
 import { NextResponse } from "next/server";
-import {
-  arxivUrl,
-  buildResults,
-  cleanQuery,
-  isPlainParadigmQuery,
-  parseArxivAtom,
-} from "../../../module/desktop/apps/chrome/searchCore.js";
+import { cleanQuery } from "../../../module/desktop/apps/chrome/searchCore.js";
+import { clientIp, rateLimit } from "../web/limit.js";
+import { searchWeb } from "../web/providers.js";
 
 // GET /api/search?q=&source=papers|web|weather
-// papers: live arXiv (Atom, newest first) plus the curated Paradigm snapshot.
-// web: the small curated demo index. weather: a condensed wttr.in reading.
-// Server-side so the browser never needs CORS access. No API keys involved.
+// web | news | papers: delegates to the provider chain in ../web/providers.js
+// (the app itself calls /api/web/search; this route is kept for older callers).
+// weather: a condensed wttr.in reading.
+// Server-side so the browser never needs CORS access.
 
 export const dynamic = "force-dynamic";
 
-const TIMEOUT_MS = 6000;
 const CACHE_MS = 5 * 60_000;
 const cache = new Map();
 
@@ -69,9 +65,12 @@ export async function GET(req) {
   const source = url.searchParams.get("source") || "web";
   const q = cleanQuery(url.searchParams.get("q"));
   if (!q) return NextResponse.json({ error: "Missing q" }, { status: 400 });
-  if (!["papers", "web", "weather"].includes(source)) {
+  if (!["papers", "web", "news", "weather"].includes(source)) {
     return NextResponse.json({ error: "Unknown source" }, { status: 400 });
   }
+
+  if (source !== "weather" && !rateLimit("search", clientIp(req), 60).ok)
+    return NextResponse.json({ error: "Too many searches. Try again shortly." }, { status: 429 });
 
   const key = `${source}:${q.toLowerCase()}`;
   const cached = getCached(key);
@@ -88,17 +87,8 @@ export async function GET(req) {
       return NextResponse.json(value);
     }
 
-    let arxiv = null;
-    if (source === "papers" && !isPlainParadigmQuery(q)) {
-      try {
-        const res = await timedFetch(arxivUrl(q), TIMEOUT_MS);
-        if (res.ok) arxiv = parseArxivAtom(await res.text());
-      } catch {
-        arxiv = null;
-      }
-    }
-    const value = buildResults(q, source, { arxiv });
-    // Do not cache an offline answer so the next try can reach arXiv.
+    const value = await searchWeb(q, source);
+    // Do not cache an offline answer so the next try can reach the network.
     if (!value.offline) setCached(key, value);
     return NextResponse.json(value);
   } catch (err) {

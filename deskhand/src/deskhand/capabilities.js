@@ -15,11 +15,11 @@ export const CAPABILITIES = {
     { name: "new_note", description: "Create a new note.", params: { type: "object", properties: { title: str("Optional title") } } },
   ],
   browser: [
-    { name: "open_url", description: "Open a page by id, link label or URL.", params: { type: "object", properties: { url: str("Page id, link label or URL") }, required: ["url"] } },
+    { name: "open_url", description: "Open a real web page by URL (shown in a reader view and returned as text), or a built-in page by id or link label.", params: { type: "object", properties: { url: str("Page id, link label or URL") }, required: ["url"] } },
     { name: "copy_link", description: "Copy the URL of a link on the page (by label), or the current page URL when empty, to the clipboard.", params: { type: "object", properties: { element: str("Link label; empty for the current page") } } },
     { name: "back", description: "Go back one page.", params: { type: "object", properties: {} } },
-    { name: "search", description: "Search and show results. source 'papers' searches research papers (arXiv and a curated index), 'web' searches the demo web index.", params: { type: "object", properties: { query: str("Search query"), source: { type: "string", enum: ["web", "papers"] } }, required: ["query"] } },
-    { name: "open_result", description: "Open a search result: 'latest' (newest by date), 'first', a number, or part of a title.", params: { type: "object", properties: { which: str("latest | first | 1-based number | title text") }, required: ["which"] } },
+    { name: "search", description: "Search the real web and show the results (returned as numbered lines with title, date, URL and snippet). source 'web' is the default, 'news' for recent news, 'papers' for research papers (arXiv and a curated index).", params: { type: "object", properties: { query: str("Search query"), source: { type: "string", enum: ["web", "news", "papers"] } }, required: ["query"] } },
+    { name: "open_result", description: "Open a search result in the browser and return the start of its text so it can be summarised: 'latest' (newest by date), 'first', a number, or part of a title.", params: { type: "object", properties: { which: str("latest | first | 1-based number | title text") }, required: ["which"] } },
     { name: "read_page", description: "Return the visible text of the current page so it can be summarised.", params: { type: "object", properties: {} } },
   ],
   music: [
@@ -49,7 +49,7 @@ export const CAPABILITIES = {
     { name: "set_wallpaper", description: "Change the desktop wallpaper by name or number (see list_wallpapers; also plain colours such as 'midnight' or 'sky blue').", params: { type: "object", properties: { name: str("Wallpaper name, colour or number") }, required: ["name"] } },
     { name: "list_wallpapers", description: "Return the available wallpapers.", params: { type: "object", properties: {} } },
     { name: "widget_list", description: "Return the widgets on the desktop and the kinds that can be added.", params: { type: "object", properties: {} } },
-    { name: "widget_add", description: "Add a desktop widget (clock, calendar, weather, notes, music, battery...).", params: { type: "object", properties: { kind: str("Widget kind") }, required: ["kind"] } },
+    { name: "widget_add", description: "Add a desktop widget (clock, analog-clock, clock-calendar, weather, battery, notes, music), optionally at a position.", params: { type: "object", properties: { kind: str("Widget kind"), position: { type: "string", enum: ["top-left", "top-right", "bottom-left", "bottom-right", "center"] } }, required: ["kind"] } },
     { name: "widget_remove", description: "Remove a desktop widget.", params: { type: "object", properties: { kind: str("Widget kind") }, required: ["kind"] } },
     { name: "widget_move", description: "Move a widget to a screen position.", params: { type: "object", properties: { kind: str("Widget kind"), position: { type: "string", enum: ["top-left", "top-right", "bottom-left", "bottom-right", "center"] } }, required: ["kind", "position"] } },
     { name: "dock_add", description: "Add an app to the dock.", params: { type: "object", properties: { app: str("App name") }, required: ["app"] } },
@@ -67,13 +67,22 @@ export const CAPABILITIES = {
     { name: "screenshot", description: "Take a screenshot of the desktop.", params: { type: "object", properties: {} } },
     { name: "set_brightness", description: "Set screen brightness 0 to 100.", params: { type: "object", properties: { level: { type: "number", minimum: 0, maximum: 100 } }, required: ["level"] } },
     { name: "set_system_volume", description: "Set system volume 0 to 100.", params: { type: "object", properties: { level: { type: "number", minimum: 0, maximum: 100 } }, required: ["level"] } },
+    { name: "restore_item", description: "Put a file or folder back from the Trash onto the desktop.", params: { type: "object", properties: { name: str("Name") }, required: ["name"] } },
+    { name: "empty_trash", description: "Empty the Trash.", params: { type: "object", properties: {} } },
+    { name: "list_desktop", description: "Return the files and folders on the desktop and in the Trash.", params: { type: "object", properties: {} } },
+    { name: "open_item", description: "Open a desktop file or folder (text files return their text).", params: { type: "object", properties: { name: str("Name") }, required: ["name"] } },
+    { name: "about_this_mac", description: "Open the About this Mac / About Jarvis pane.", params: { type: "object", properties: {} } },
+    { name: "notification_center", description: "Open or close Notification Center (open true or false; toggles when omitted).", params: { type: "object", properties: { open: { type: "boolean" } } } },
   ],
   weather: [
     { name: "show", description: "Show the weather for a city and return a short description.", params: { type: "object", properties: { city: str("City name") }, required: ["city"] } },
   ],
   settings: [
     { name: "set_theme", description: "Switch light or dark mode.", params: { type: "object", properties: { theme: { type: "string", enum: ["light", "dark"] } }, required: ["theme"] } },
-    { name: "set_setting", description: "Toggle a system setting: wifi, bluetooth, focusMode, nightLight, vpn.", params: { type: "object", properties: { key: str("Setting key"), value: { type: "boolean" } }, required: ["key", "value"] } },
+    { name: "set_setting", description: "Toggle a system setting: wifi, bluetooth, airdrop, focusMode (do not disturb), nightLight, vpn, firewall, darkMode, airplane, lowPowerMode, showBatteryPercentage.", params: { type: "object", properties: { key: str("Setting key"), value: { type: "boolean" } }, required: ["key", "value"] } },
+    { name: "get_settings", description: "Return the current system settings (wifi, bluetooth, focus, brightness and so on).", params: { type: "object", properties: {} } },
+    { name: "connect_wifi", description: "Connect to a Wi-Fi network by name.", params: { type: "object", properties: { network: str("Network name, e.g. 'Coffee Shop 5G'") }, required: ["network"] } },
+    { name: "bluetooth_device", description: "Connect or disconnect a Bluetooth device (AirPods, keyboard, mouse, headphones).", params: { type: "object", properties: { device: str("Device name"), connected: { type: "boolean" } }, required: ["device"] } },
   ],
 };
 
