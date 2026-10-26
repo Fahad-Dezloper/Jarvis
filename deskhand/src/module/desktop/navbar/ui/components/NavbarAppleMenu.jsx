@@ -13,7 +13,7 @@ const NavbarAppleMenu = ({
   const menuSections = [
     [
       {
-        label: "About Orry",
+        label: "About Jarvis",
         action: "about",
       },
     ],

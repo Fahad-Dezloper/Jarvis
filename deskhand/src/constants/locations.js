@@ -17,7 +17,7 @@ export const README_FILE = txt(
   "Readme.txt",
   [
     "Hold Fn, speak, and your desktop obeys.",
-    "Orry is a macOS-style desktop in your browser that you control with your voice. Dictate with Wispr Flow into the command bar (or just type), and Orry plans the actions and performs them on the desktop for you.",
+    "Jarvis is a macOS-style desktop in your browser that you control with your voice. Dictate with Wispr Flow into the command bar (or just type), and Jarvis plans the actions and performs them on the desktop for you.",
     'Try saying: 1) "Open the terminal and run ls".  2) "Make a note called Groceries with milk, eggs and bread".  3) "Open Safari and search for northern lights".  4) "Play some music".  5) "Open Calculator and Settings side by side".',
   ],
   "top-5 left-10",
@@ -65,7 +65,7 @@ const WORK_LOCATION = {
         txt(1, "Shopping List.txt", ["Milk", "Eggs", "Bread", "Coffee beans", "Oranges"]),
         txt(2, "Quote.txt", [
           "The best way to predict the future is to invent it.",
-          "Try asking Orry to open this file, or to make a new note with it.",
+          "Try asking Jarvis to open this file, or to make a new note with it.",
         ]),
       ],
     },
@@ -75,16 +75,16 @@ const WORK_LOCATION = {
 const ABOUT_LOCATION = {
   id: 2,
   type: "about",
-  name: "Orry",
+  name: "Jarvis",
   icon: "/system/icons/ui/info.svg",
   kind: "folder",
   children: [
     README_FILE,
     txt(
       4,
-      "about-orry.txt",
+      "about-jarvis.txt",
       [
-        "Orry is a browser-based macOS-style desktop that you control by voice.",
+        "Jarvis is a browser-based macOS-style desktop that you control by voice.",
         "Wispr Flow dictation types into the command bar, an engine plans the actions, and the desktop performs them. No sign-in and no setup needed.",
         "The desktop shell is forked from the MIT-licensed macos-portfolio project; see the README for credit.",
       ],

@@ -41,7 +41,7 @@ async function timedFetch(url, ms, init = {}) {
 
 async function weather(city) {
   const res = await timedFetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, 5000, {
-    headers: { "user-agent": "orry-demo" },
+    headers: { "user-agent": "jarvis-demo" },
   });
   if (!res.ok) throw new Error(`wttr.in ${res.status}`);
   const j = await res.json();

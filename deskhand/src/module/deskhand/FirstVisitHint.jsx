@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 
 const KEY = "dk:hint-seen";
 
@@ -20,8 +20,8 @@ function markSeen() {
 }
 
 export default function FirstVisitHint() {
-  const dismissed = useOrryStore((s) => s.hintDismissed);
-  const dismiss = useOrryStore((s) => s.dismissHint);
+  const dismissed = useJarvisStore((s) => s.hintDismissed);
+  const dismiss = useJarvisStore((s) => s.dismissHint);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function FirstVisitHint() {
   return (
     <div className="dk-ui dk-hint" role="status">
       <p>
-        Hold <kbd>Fn</kbd>, speak, release. Orry listens, subtitles show what it heard.
+        Hold <kbd>Fn</kbd>, speak, release. Jarvis listens, subtitles show what it heard.
         <span className="dk-hint-sub">No Wispr Flow? Press Cmd+Shift+Space to type instead.</span>
       </p>
       <button type="button" className="dk-icon-btn" onClick={dismiss} aria-label="Dismiss hint">

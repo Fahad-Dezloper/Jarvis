@@ -1,4 +1,4 @@
-// Orry engine entry. runCommand(text) runs the multi-step agent loop (loop.js):
+// Jarvis engine entry. runCommand(text) runs the multi-step agent loop (loop.js):
 // snapshot -> plan the next batch via /api/act (model) or the offline rules ->
 // execute -> feed each handler's result back as an observation -> repeat until
 // the planner says it is done or the round/time budget is spent.

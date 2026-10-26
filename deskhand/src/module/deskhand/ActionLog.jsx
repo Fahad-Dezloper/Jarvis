@@ -1,5 +1,5 @@
 import { Check, Circle, Loader2, Pin, X } from "lucide-react";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 import { humanize } from "./humanize";
 import { logVisible } from "./subtitleLogic";
 
@@ -11,11 +11,11 @@ function StepIcon({ status }) {
 }
 
 export default function ActionLog() {
-  const plan = useOrryStore((s) => s.plan);
-  const steps = useOrryStore((s) => s.steps);
-  const status = useOrryStore((s) => s.status);
-  const pinned = useOrryStore((s) => s.logPinned);
-  const setPinned = useOrryStore((s) => s.setLogPinned);
+  const plan = useJarvisStore((s) => s.plan);
+  const steps = useJarvisStore((s) => s.steps);
+  const status = useJarvisStore((s) => s.status);
+  const pinned = useJarvisStore((s) => s.logPinned);
+  const setPinned = useJarvisStore((s) => s.setLogPinned);
 
   const actions = plan?.actions ?? [];
   const visibleActions = actions.filter((a) => a.type !== "say");

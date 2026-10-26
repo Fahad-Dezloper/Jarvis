@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { onOrryEvent } from "./store";
+import { onJarvisEvent } from "./store";
 
 function prefersReducedMotion() {
   return (
@@ -21,7 +21,7 @@ export default function VirtualCursor() {
     gsap.set(cursor, { autoAlpha: 0 });
     gsap.set(ripple, { autoAlpha: 0 });
 
-    const off = onOrryEvent((e) => {
+    const off = onJarvisEvent((e) => {
       if (e.type !== "step" || e.status !== "start" || !e.rect) return;
       const { x, y, width, height } = e.rect;
       if (![x, y, width, height].every(Number.isFinite) || (width <= 0 && height <= 0)) return;

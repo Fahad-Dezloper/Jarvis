@@ -7,7 +7,7 @@ export default function App() {
   return (
     <div className="app min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans">
       <header className="py-4 border-b border-zinc-900 px-8">
-        <span className="font-bold text-sm tracking-tight text-white uppercase">Hello Orry</span>
+        <span className="font-bold text-sm tracking-tight text-white uppercase">Hello Jarvis</span>
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-12 space-y-12">
@@ -24,7 +24,7 @@ export default function Greeting({ name }) {
     <section className="space-y-3">
       <h1 className="text-4xl font-black tracking-tight text-white">Hello, {name}!</h1>
       <p className="text-base text-zinc-400 leading-relaxed">
-        This is a small demo project living inside the Orry code editor.
+        This is a small demo project living inside the Jarvis code editor.
       </p>
     </section>
   );
@@ -97,9 +97,9 @@ module.exports = {
   ".env": `NEXT_PUBLIC_SITE_NAME=hello-deskhand
 PORT=3000
 NODE_ENV=development`,
-  "README.md": `# Hello Orry
+  "README.md": `# Hello Jarvis
 
-A tiny demo project inside the Orry code editor. Open, edit and browse these files, or ask Orry to do it for you by voice.
+A tiny demo project inside the Jarvis code editor. Open, edit and browse these files, or ask Jarvis to do it for you by voice.
 
 ## Run Project Locally
 Install dependencies:

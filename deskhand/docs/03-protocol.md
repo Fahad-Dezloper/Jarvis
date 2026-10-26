@@ -1,4 +1,4 @@
-# Orry: Protocol v1
+# Jarvis: Protocol v1
 
 Five JSON message shapes: Intent, Context, Plan, Action, Result. The web demo's `CONTRACT_VERSION` is `1`; the native launcher reuses the same Action union.
 

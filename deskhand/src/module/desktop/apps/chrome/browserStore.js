@@ -62,7 +62,7 @@ export async function runSearch(q, source = "web") {
   return result;
 }
 
-/** Tab title for an orry:// URL. */
+/** Tab title for an jarvis:// URL. */
 export function titleForInternalUrl(url) {
   const p = parseInternalUrl(url);
   if (!p) return null;

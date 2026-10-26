@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 import { QUIET_MS, decideCommit, isRealEditable, shouldCaptureFocus } from "./voiceLogic";
 
 // An invisible but real, focusable textarea. Dictation tools (Wispr Flow) type or
@@ -13,7 +13,7 @@ export default function VoiceCapture() {
   const evaluateRef = useRef(() => {});
   const paused = useRef(false); // Escape pauses capture until the next click or Cmd/Ctrl+K
 
-  const busy = useOrryStore((s) => s.status === "running");
+  const busy = useJarvisStore((s) => s.status === "running");
   const busyRef = useRef(busy);
   useEffect(() => {
     busyRef.current = busy;
@@ -37,7 +37,7 @@ export default function VoiceCapture() {
       busy: busyRef.current,
       enter,
     });
-    const store = useOrryStore.getState();
+    const store = useJarvisStore.getState();
     if (d.action === "wait") {
       timer.current = setTimeout(() => evaluateRef.current(false), d.waitMs + 20);
     } else if (d.action === "commit") {
@@ -60,7 +60,7 @@ export default function VoiceCapture() {
   const onInput = useCallback(
     (e) => {
       changedAt.current = Date.now();
-      useOrryStore.getState().setLive(e.target.value.replace(/\s+/g, " ").trim());
+      useJarvisStore.getState().setLive(e.target.value.replace(/\s+/g, " ").trim());
       clearTimeout(timer.current);
       timer.current = setTimeout(() => evaluate(false), QUIET_MS + 20);
     },
@@ -142,7 +142,7 @@ export default function VoiceCapture() {
       evaluate(true);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      const store = useOrryStore.getState();
+      const store = useJarvisStore.getState();
       if (ref.current?.value) {
         ref.current.value = "";
         changedAt.current = null;
@@ -170,8 +170,8 @@ export default function VoiceCapture() {
       spellCheck={false}
       onInput={onInput}
       onKeyDown={onKeyDown}
-      onFocus={() => useOrryStore.getState().setCaptureFocused(true)}
-      onBlur={() => useOrryStore.getState().setCaptureFocused(false)}
+      onFocus={() => useJarvisStore.getState().setCaptureFocused(true)}
+      onBlur={() => useJarvisStore.getState().setCaptureFocused(false)}
     />
   );
 }

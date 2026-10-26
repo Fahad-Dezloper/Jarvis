@@ -1,6 +1,6 @@
-export const SITE_NAME = "Orry";
+export const SITE_NAME = "Jarvis";
 export const SITE_DESCRIPTION =
-  "Orry is a macOS-style desktop in your browser that you control by voice. Dictate with Wispr Flow, and the desktop obeys.";
+  "Jarvis is a macOS-style desktop in your browser that you control by voice. Dictate with Wispr Flow, and the desktop obeys.";
 
 export function pageMetadata({ title = SITE_NAME, description = SITE_DESCRIPTION } = {}) {
   return {

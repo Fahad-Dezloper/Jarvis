@@ -1,18 +1,18 @@
 import { useEffect, useRef } from "react";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 
 // Fallback for people without Wispr Flow: Cmd/Ctrl+Shift+Space opens a small field.
 export default function TypeInstead() {
-  const open = useOrryStore((s) => s.typeOpen);
-  const setOpen = useOrryStore((s) => s.setTypeOpen);
-  const submit = useOrryStore((s) => s.submit);
+  const open = useJarvisStore((s) => s.typeOpen);
+  const setOpen = useJarvisStore((s) => s.setTypeOpen);
+  const submit = useJarvisStore((s) => s.submit);
   const inputRef = useRef(null);
 
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "Space") {
         e.preventDefault();
-        setOpen(!useOrryStore.getState().typeOpen);
+        setOpen(!useJarvisStore.getState().typeOpen);
       }
     };
     window.addEventListener("keydown", onKey, true);

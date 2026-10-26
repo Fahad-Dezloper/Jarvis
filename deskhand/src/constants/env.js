@@ -1,4 +1,4 @@
-// Neutral placeholders. The upstream project's personal links were removed for Orry.
+// Neutral placeholders. The upstream project's personal links were removed for Jarvis.
 // These names stay exported only so modules owned by other work-streams keep compiling.
 export const PROJECT_1_URL = "https://example.com/";
 export const PROJECT_1_GITHUB = "https://github.com/";

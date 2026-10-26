@@ -1,7 +1,7 @@
 export default function manifest() {
   return {
-    name: "Orry",
-    short_name: "Orry",
+    name: "Jarvis",
+    short_name: "Jarvis",
     description: "A voice-controlled macOS-style desktop in your browser.",
     start_url: "/",
     scope: "/",

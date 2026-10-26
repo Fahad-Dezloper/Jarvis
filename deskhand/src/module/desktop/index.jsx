@@ -25,7 +25,7 @@ import Welcome from "@module/desktop/apps/welcome/ui/view/WelcomeView";
 import Notch from "./notch/ui/view/NotchView";
 import { useState, useEffect } from "react";
 import useWindowsStore from "@store/window";
-import Orry from "@module/deskhand";
+import Jarvis from "@module/deskhand";
 import AboutPortfolioModal from "@module/desktop/navbar/ui/components/AboutPortfolioModal";
 
 const DesktopWidgets = dynamic(() => import("./widgets/ui/components/Widgets"), {
@@ -103,7 +103,7 @@ const Desktop = () => {
       <Music />
       <Launchpad />
       <Home />
-      <Orry />
+      <Jarvis />
 
       {/* About Portfolio Dialog */}
       <AboutPortfolioModal

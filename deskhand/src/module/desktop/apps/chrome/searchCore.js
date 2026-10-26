@@ -317,12 +317,12 @@ export function resultsText(set) {
 // ------------------------------------------------------------ internal URLs
 
 export const searchUrl = (q, source = "web") =>
-  `orry://search?q=${encodeURIComponent(q)}&source=${source}`;
-export const articleUrl = (id) => `orry://article?id=${encodeURIComponent(id)}`;
-export const isInternalUrl = (url) => /^orry:\/\//i.test(String(url || ""));
+  `jarvis://search?q=${encodeURIComponent(q)}&source=${source}`;
+export const articleUrl = (id) => `jarvis://article?id=${encodeURIComponent(id)}`;
+export const isInternalUrl = (url) => /^jarvis:\/\//i.test(String(url || ""));
 
 export function parseInternalUrl(url) {
-  const m = String(url || "").match(/^orry:\/\/(search|article)\?(.*)$/i);
+  const m = String(url || "").match(/^jarvis:\/\/(search|article)\?(.*)$/i);
   if (!m) return null;
   const p = new URLSearchParams(m[2]);
   if (m[1].toLowerCase() === "search") {

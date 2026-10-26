@@ -46,7 +46,7 @@ const NavbarControlCenterSection = ({
     name: "Guest",
     avatar_url: null,
     login: "guest",
-    bio: "Orry guest session",
+    bio: "Jarvis guest session",
     location: "Browser",
   };
 
@@ -548,7 +548,7 @@ const NavbarControlCenterSection = ({
                         <Settings size={14} className="text-white/40 shrink-0 mt-0.5" />
                         {currentUserMode === "admin" ? (
                           <span className="block font-medium">
-                            Welcome to Orry. Hold Fn, speak, and your desktop obeys.
+                            Welcome to Jarvis. Hold Fn, speak, and your desktop obeys.
                           </span>
                         ) : (
                           <span>

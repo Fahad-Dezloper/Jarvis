@@ -5,7 +5,7 @@ import { initialProgress, tickMissions } from "./missionsLogic";
 
 // Engine events fan out to non-React listeners (virtual cursor, missions).
 const listeners = new Set();
-export function onOrryEvent(cb) {
+export function onJarvisEvent(cb) {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
@@ -29,7 +29,7 @@ async function pickEngine() {
   return runCommand;
 }
 
-const useOrryStore = create((set, get) => ({
+const useJarvisStore = create((set, get) => ({
   status: "idle", // idle | running
   command: "",
   plan: null,
@@ -157,4 +157,4 @@ const useOrryStore = create((set, get) => ({
   },
 }));
 
-export default useOrryStore;
+export default useJarvisStore;

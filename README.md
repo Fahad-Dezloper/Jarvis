@@ -1,8 +1,8 @@
-# Orry
+# Jarvis
 
 **Say what you want. Your desktop does it.**
 
-Orry is a voice-first desktop. You hold your dictation key ([Wispr Flow](https://wisprflow.ai)), speak loosely, and a model turns what you meant into actions that happen on screen: open apps, run commands, play music, save a link, tidy your windows.
+Jarvis is a voice-first desktop. You hold your dictation key ([Wispr Flow](https://wisprflow.ai)), speak loosely, and a model turns what you meant into actions that happen on screen: open apps, run commands, play music, save a link, tidy your windows.
 
 Built for the WeMakeDevs x Wispr Flow "No Hands" challenge (Builders track). Non-commercial.
 
@@ -10,8 +10,8 @@ Built for the WeMakeDevs x Wispr Flow "No Hands" challenge (Builders track). Non
 
 | | What it is | Status |
 |---|---|---|
-| **Orry web demo** (`deskhand/`) | A macOS-style desktop in the browser that you control by voice. Open the link, no sign-in, no install. | Working. This is the submission. |
-| **Orry launcher** (design only) | A small always-on command bar for your real computer. Same idea, real apps. | Planned. The protocol and infrastructure are documented at `/docs`. |
+| **Jarvis web demo** (`deskhand/`) | A macOS-style desktop in the browser that you control by voice. Open the link, no sign-in, no install. | Working. This is the submission. |
+| **Jarvis launcher** (design only) | A small always-on command bar for your real computer. Same idea, real apps. | Planned. The protocol and infrastructure are documented at `/docs`. |
 
 ## Try it
 
@@ -26,7 +26,7 @@ Built for the WeMakeDevs x Wispr Flow "No Hands" challenge (Builders track). Non
 
 Bonus: "Open the browser and save this artifact link to my notes", "Resize the windows so they all look good", "Switch to dark mode".
 
-Orry understands messy, dictated speech ("uh open claude code and then run npm run dev"), and follow-ups like "close it" use the previous turn.
+Jarvis understands messy, dictated speech ("uh open claude code and then run npm run dev"), and follow-ups like "close it" use the previous turn.
 
 ## How it works
 
@@ -38,7 +38,7 @@ Wispr Flow  ->  command bar  ->  snapshot of the desktop  ->  planner  ->  execu
                                                                               DOM)
 ```
 
-- **Wispr Flow only types text into whichever field has focus.** Orry has no speech code of its own. The app adds the structure: it reads the desktop, plans a short sequence of actions, and shows each step.
+- **Wispr Flow only types text into whichever field has focus.** Jarvis has no speech code of its own. The app adds the structure: it reads the desktop, plans a short sequence of actions, and shows each step.
 - **Planner:** Claude through the Vercel AI SDK with structured output, validated against an allowlist of actions. With no API key (or if the model fails) an offline rules parser handles common commands, so the demo always works.
 - **Executor:** window actions go through the desktop store; apps expose handlers (terminal, notes, browser, music, settings, finder); any other app can still be clicked and typed into through a generic scan of on-screen controls.
 - **Safety:** model output is validated against a fixed set of actions. Page and app text is treated as data, never as instructions.
@@ -64,7 +64,7 @@ cp .env.example .env.local   # optional: add ANTHROPIC_API_KEY
 npm run dev
 ```
 
-Without a key, Orry uses the offline rules planner. The key is read on the server only.
+Without a key, Jarvis uses the offline rules planner. The key is read on the server only.
 
 Checks: `npm run check:engine`, `check:apps`, `check:ui`.
 

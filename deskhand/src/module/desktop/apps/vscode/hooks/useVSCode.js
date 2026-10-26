@@ -295,13 +295,13 @@ const useVSCode = () => {
           } else if (sub === "log") {
             output = [
               "commit a1b2c3d (HEAD -> main, origin/main)",
-              "Author: Guest <guest@orry.local>",
+              "Author: Guest <guest@jarvis.local>",
               `Date:   ${new Date().toDateString()}`,
               "",
               "    Initial project setup",
               "",
               "commit e4f5g6h",
-              "Author: Guest <guest@orry.local>",
+              "Author: Guest <guest@jarvis.local>",
               "Date:   Sat Jun 7 2026",
               "",
               "    Add greeting component",

@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 import { deriveSubtitle, resultDuration } from "./subtitleLogic";
 
 export default function Subtitle() {
-  const live = useOrryStore((s) => s.live);
-  const status = useOrryStore((s) => s.status);
-  const command = useOrryStore((s) => s.command);
-  const reply = useOrryStore((s) => s.reply);
-  const error = useOrryStore((s) => s.error);
-  const cancelled = useOrryStore((s) => s.cancelled);
-  const ok = useOrryStore((s) => s.ok);
-  const source = useOrryStore((s) => s.source);
-  const resultSeq = useOrryStore((s) => s.resultSeq);
-  const captureFocused = useOrryStore((s) => s.captureFocused);
-  const cancel = useOrryStore((s) => s.cancel);
+  const live = useJarvisStore((s) => s.live);
+  const status = useJarvisStore((s) => s.status);
+  const command = useJarvisStore((s) => s.command);
+  const reply = useJarvisStore((s) => s.reply);
+  const error = useJarvisStore((s) => s.error);
+  const cancelled = useJarvisStore((s) => s.cancelled);
+  const ok = useJarvisStore((s) => s.ok);
+  const source = useJarvisStore((s) => s.source);
+  const resultSeq = useJarvisStore((s) => s.resultSeq);
+  const captureFocused = useJarvisStore((s) => s.captureFocused);
+  const cancel = useJarvisStore((s) => s.cancel);
 
   const [showResult, setShowResult] = useState(false);
   const [ready, setReady] = useState(false);
@@ -27,7 +27,7 @@ export default function Subtitle() {
 
   useEffect(() => {
     if (!resultSeq) return undefined;
-    const st = useOrryStore.getState();
+    const st = useJarvisStore.getState();
     const isErr = !!st.error || st.cancelled || !st.ok;
     setShowResult(true);
     const t = setTimeout(() => setShowResult(false), resultDuration(st.error || st.reply, isErr));

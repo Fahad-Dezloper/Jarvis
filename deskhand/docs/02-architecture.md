@@ -1,4 +1,4 @@
-# Orry: Architecture
+# Jarvis: Architecture
 
 ```
 Dictation (user's app, e.g. Wispr Flow)

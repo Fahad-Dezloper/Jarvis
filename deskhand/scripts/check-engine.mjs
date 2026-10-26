@@ -1,4 +1,4 @@
-// Known-answer checks for the Orry engine (pure logic only; no browser, no network).
+// Known-answer checks for the Jarvis engine (pure logic only; no browser, no network).
 // Run: npm run check:engine
 import assert from "node:assert/strict";
 import { planWithRules, mentionedApps, cleanText, splitCommand } from "../src/deskhand/engine/rules.js";
@@ -418,16 +418,16 @@ const README = `File: package.json
 { "name": "orry", "description": "Voice desktop", "dependencies": { "next": "16", "gsap": "3" }, "scripts": { "dev": "next dev", "build": "next build" } }
 
 File: README.md
-# Orry
+# Jarvis
 
-Orry is a browser macOS desktop that you control by voice during demos.
+Jarvis is a browser macOS desktop that you control by voice during demos.
 
 ## Setup
 npm install
 `;
 check("summarizeProject uses only what the data says", () => {
   const s = summarizeProject(README);
-  assert.ok(s.includes("Orry is a browser macOS desktop"), s);
+  assert.ok(s.includes("Jarvis is a browser macOS desktop"), s);
   assert.ok(s.includes("next, gsap"), s);
   assert.ok(!/python|rust/i.test(s));
   const none = summarizeProject("zzz qqq");
@@ -435,7 +435,7 @@ check("summarizeProject uses only what the data says", () => {
 });
 check("resolveFollowup: project, search, answer, missing data", () => {
   const obs = [{ index: 2, action: "terminal.read_project({})", ok: true, message: "Read 3 files", data: README }];
-  assert.ok(resolveFollowup({ kind: "project_summary" }, obs).reply.includes("Orry"));
+  assert.ok(resolveFollowup({ kind: "project_summary" }, obs).reply.includes("Jarvis"));
   assert.ok(/didn't get the project files/.test(resolveFollowup({ kind: "project_summary" }, []).reply));
   const s = [
     { index: 1, action: 'browser.search({"query":"x"})', ok: true, message: "5 results", data: "Paper A (2025)\nPaper B (2024)" },
@@ -479,18 +479,18 @@ const readProject = { type: "invoke", app: "terminal", name: "read_project", arg
 checkAsync("loop: read_project then final summary (fake model)", async () => {
   const { deps, calls } = mkDeps([
     { actions: [{ type: "open", window: "terminal" }, readProject], reply: "Reading the project.", done: false },
-    { actions: [], reply: "It is Orry, a voice-controlled desktop.", done: true },
+    { actions: [], reply: "It is Jarvis, a voice-controlled desktop.", done: true },
   ], { execute: (a) => (a.type === "invoke" ? { ok: true, message: "Read 12 files", data: README } : { ok: true, message: "Opened terminal" }) });
   const { events, onEvent } = collect();
   const r = await runLoop("open claude code and tell me what the project is", { onEvent }, deps);
-  assert.equal(r.reply, "It is Orry, a voice-controlled desktop.");
+  assert.equal(r.reply, "It is Jarvis, a voice-controlled desktop.");
   assert.equal(r.ok, true);
   assert.equal(r.source, "model");
   assert.equal(calls.plan.length, 2);
   // the second plan request carries the observation, including the data
   assert.equal(calls.plan[1].round, 2);
   assert.equal(calls.plan[1].observations.length, 1);
-  assert.ok(calls.plan[1].observations[0].text.includes("Orry is a browser macOS desktop"));
+  assert.ok(calls.plan[1].observations[0].text.includes("Jarvis is a browser macOS desktop"));
   const types2 = events.map((e) => e.type);
   assert.deepEqual(types2.filter((t) => t === "plan").length, 2);
   assert.equal(events.filter((e) => e.type === "observation").length, 1);
@@ -636,7 +636,7 @@ checkAsync("loop: flagship project ask end to end with rules and a mocked bridge
     deps: { resolveFollowup },
   });
   const r = await runLoop("x", {}, deps);
-  assert.ok(r.reply.includes("Orry is a browser macOS desktop"), r.reply);
+  assert.ok(r.reply.includes("Jarvis is a browser macOS desktop"), r.reply);
   assert.ok(!/invent/i.test(r.reply));
 });
 checkAsync("loop: empty command", async () => {

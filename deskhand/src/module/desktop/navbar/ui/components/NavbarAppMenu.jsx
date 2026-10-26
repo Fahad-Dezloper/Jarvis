@@ -91,7 +91,7 @@ const NavbarAppMenu = ({ activeAppName, openWindow, isAppleMenuOpen, setIsAppleM
               }
             } else if (aboutTargets[activeAppName]) {
               openWindow(aboutTargets[activeAppName], { openAbout: true });
-            } else if (activeAppName === "Orry") {
+            } else if (activeAppName === "Jarvis") {
               setAboutPortfolioOpen(true);
             } else {
               openWindow("settings", { tab: "General" });
@@ -113,7 +113,7 @@ const NavbarAppMenu = ({ activeAppName, openWindow, isAppleMenuOpen, setIsAppleM
               openWindow("settings", { tab: "General", subPage: "storage" });
             } else if (activeAppName === "Settings") {
               openWindow("settings", { tab: "General" });
-            } else if (activeAppName === "Orry") {
+            } else if (activeAppName === "Jarvis") {
               openWindow("settings", { tab: "General", subPage: "about" });
             } else {
               openWindow("settings");

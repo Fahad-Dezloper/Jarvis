@@ -8,8 +8,8 @@ import VoiceCapture from "./VoiceCapture";
 
 // Mount point for the voice front door. Rendered once by the desktop.
 // There is no visible input: VoiceCapture is an invisible focused field, Subtitle shows
-// what was heard and what Orry answered.
-export default function Orry() {
+// what was heard and what Jarvis answered.
+export default function Jarvis() {
   return (
     <>
       <VoiceCapture />

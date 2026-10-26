@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, ChevronUp, Lightbulb, PartyPopper } from "lucide-react";
 import useWindowsStore from "@store/window";
-import useOrryStore from "./store";
+import useJarvisStore from "./store";
 import {
   BONUS,
   CHALLENGES,
@@ -36,8 +36,8 @@ function Item({ item, done, index }) {
 }
 
 export default function Missions() {
-  const progress = useOrryStore((s) => s.missions);
-  const tick = useOrryStore((s) => s.tickMissions);
+  const progress = useJarvisStore((s) => s.missions);
+  const tick = useJarvisStore((s) => s.tickMissions);
   const [expanded, setExpanded] = useState(false);
   const [bonusOpen, setBonusOpen] = useState(false);
 
