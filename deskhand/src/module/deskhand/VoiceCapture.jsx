@@ -12,6 +12,10 @@ export default function VoiceCapture() {
   const timer = useRef(null);
   const evaluateRef = useRef(() => {});
   const paused = useRef(false); // Escape pauses capture until the next click or Cmd/Ctrl+K
+  // True only while the user has deliberately clicked into a real field (Notes, search box, terminal).
+  // Apps that grab focus on their own (a terminal that auto-focuses, a search box that opens focused)
+  // must not keep dictation away from the voice field.
+  const userIntent = useRef(false);
 
   const busy = useJarvisStore((s) => s.status === "running");
   const busyRef = useRef(busy);
@@ -22,7 +26,9 @@ export default function VoiceCapture() {
   const focusCapture = useCallback((force = false) => {
     const el = ref.current;
     if (!el || typeof document === "undefined") return;
-    if (!shouldCaptureFocus(document.activeElement, el, { paused: paused.current, force })) return;
+    // Without a deliberate click into a field, reclaim focus even from another editable element.
+    const reclaim = force || !userIntent.current;
+    if (!shouldCaptureFocus(document.activeElement, el, { paused: paused.current, force: reclaim })) return;
     if (document.activeElement !== el) el.focus({ preventScroll: true });
   }, []);
 
@@ -80,13 +86,15 @@ export default function VoiceCapture() {
   const prevBusy = useRef(false);
   useEffect(() => {
     if (prevBusy.current && !busy) {
+      userIntent.current = false;
       const t = setTimeout(() => {
-        focusCapture();
+        focusCapture(true);
         if (ref.current?.value) evaluate(false);
       }, 60);
       prevBusy.current = busy;
       return () => clearTimeout(t);
     }
+    if (!prevBusy.current && busy) userIntent.current = false;
     prevBusy.current = busy;
     return undefined;
   }, [busy, evaluate, focusCapture]);
@@ -111,9 +119,19 @@ export default function VoiceCapture() {
     const onVisible = () => {
       if (document.visibilityState === "visible") focusCapture();
     };
+    const onPointerDown = (e) => {
+      // A click straight into a real field means "I want to type here"; any other click does not.
+      userIntent.current = !!(e.target && e.target !== ref.current && isRealEditable(e.target, ref.current));
+    };
     const afterClick = () => {
       paused.current = false;
       setTimeout(() => focusCapture(), 0);
+    };
+    const onFocusIn = (e) => {
+      if (e.target === ref.current) return;
+      if (userIntent.current || !isRealEditable(e.target, ref.current)) return;
+      // An app focused one of its own fields by itself: take dictation focus back, now and after it settles.
+      [0, 120, 400].forEach((ms) => setTimeout(() => focusCapture(), ms));
     };
     const onFocusOut = (e) => {
       if (e.target === ref.current) return;
@@ -122,12 +140,16 @@ export default function VoiceCapture() {
     };
     window.addEventListener("focus", onWinFocus);
     document.addEventListener("visibilitychange", onVisible);
+    document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("click", afterClick, true);
+    document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("focusout", onFocusOut, true);
     return () => {
       window.removeEventListener("focus", onWinFocus);
       document.removeEventListener("visibilitychange", onVisible);
+      document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("click", afterClick, true);
+      document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("focusout", onFocusOut, true);
     };
   }, [focusCapture]);
@@ -138,6 +160,7 @@ export default function VoiceCapture() {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         paused.current = false;
+        userIntent.current = false;
         focusCapture(true);
       }
     };
