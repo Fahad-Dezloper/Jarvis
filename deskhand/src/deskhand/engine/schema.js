@@ -201,8 +201,9 @@ export const modelPlanSchema = z.object({
         name: z.string().optional().describe("For invoke: handler name, e.g. play."),
         args_json: z.string().optional().describe('For invoke: JSON object string of arguments, e.g. {"query":"HiNV Music"}.'),
       }),
-    )
-    .max(MAX_ACTIONS),
+    ),
+  // No .max() here: Gemini lite models reject a large maxItems in the response schema (HTTP 400).
+  // planFromModelOutput and sanitizeActions cap the count instead.
 });
 
 /** Turn the model's flat output into a validated PlanResult body. */

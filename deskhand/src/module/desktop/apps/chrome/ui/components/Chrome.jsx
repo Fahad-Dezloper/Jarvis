@@ -28,10 +28,12 @@ const NewTab = ({ navigate }) => {
       className="h-full flex flex-col items-center justify-center bg-white gap-6 px-6"
     >
       <div className="text-5xl font-semibold tracking-tight select-none">
-        <span className="text-blue-600">O</span>
-        <span className="text-red-500">r</span>
+        <span className="text-blue-600">J</span>
+        <span className="text-red-500">a</span>
         <span className="text-yellow-500">r</span>
-        <span className="text-blue-600">y</span>
+        <span className="text-blue-600">v</span>
+        <span className="text-green-600">i</span>
+        <span className="text-red-500">s</span>
       </div>
       <form
         className="w-full max-w-md flex items-center gap-2 border border-gray-300 rounded-full px-4 py-2 shadow-sm hover:shadow"

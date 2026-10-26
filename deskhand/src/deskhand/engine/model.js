@@ -145,7 +145,8 @@ export async function planWithModel(req, deps = {}) {
           system,
           prompt,
           output: Output.object({ schema: modelPlanSchema, name: "desktop_plan" }),
-          ...(isGoogle ? { providerOptions: googleOptions() } : {}),
+          // Lite models reject the thinking-level option (HTTP 400), so only send it to the full models.
+          ...(isGoogle && !/lite/i.test(id) ? { providerOptions: googleOptions() } : {}),
           abortSignal: AbortSignal.timeout(c === 0 ? MODEL_TIMEOUT_MS : FALLBACK_TIMEOUT_MS),
           maxRetries: 0,
         });
@@ -175,6 +176,8 @@ function logModelError(resolved, id, err) {
   try {
     const secret = resolved?.apiKey;
     let msg = String(err?.message ?? err ?? "").slice(0, 300);
+    const body = typeof err?.responseBody === "string" ? ` | ${err.responseBody.replace(/\s+/g, " ").slice(0, 500)}` : "";
+    msg += body;
     if (secret) msg = msg.split(secret).join("[redacted]");
     msg = msg.replace(/(key=)[^&\s"']+/gi, "$1[redacted]").replace(/sk-ant-[\w-]+/g, "[redacted]").replace(/AIza[\w-]{20,}/g, "[redacted]");
     console.error(`[model] ${resolved?.provider ?? "?"} ${id} failed: ${err?.name ?? "Error"} ${err?.statusCode ?? ""} ${msg}`);
