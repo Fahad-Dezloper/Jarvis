@@ -26,6 +26,7 @@ import Notch from "./notch/ui/view/NotchView";
 import { useState, useEffect } from "react";
 import useWindowsStore from "@store/window";
 import Jarvis from "@module/deskhand";
+import SystemLayer from "./system/SystemLayer";
 import AboutPortfolioModal from "@module/desktop/navbar/ui/components/AboutPortfolioModal";
 
 const DesktopWidgets = dynamic(() => import("./widgets/ui/components/Widgets"), {
@@ -75,6 +76,7 @@ const Desktop = () => {
 
   return (
     <main>
+      <SystemLayer />
       <Navbar />
       <Notch />
       <div

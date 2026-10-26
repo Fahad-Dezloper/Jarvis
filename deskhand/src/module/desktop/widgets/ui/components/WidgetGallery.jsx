@@ -1,73 +1,63 @@
 import useWidgetsStore from "@store/widgets";
+import { WIDGET_KINDS } from "@module/desktop/system/widgetCore";
 
-const WIDGET_TEMPLATES = [
-  {
-    type: "clock-cal",
-    name: "Time & Calendar",
-    size: "large",
-    desc: "Combined digital clock & monthly grid",
-    icon: "🗓️",
-  },
-];
+const DESCRIPTIONS = {
+  "clock-calendar": "Digital clock with the month grid",
+  clock: "Digital time and date",
+  "analog-clock": "Classic analog clock face",
+  weather: "Current conditions and the day's range",
+  battery: "Battery level and charging state",
+  notes: "A sticky note you can type into",
+  music: "Now playing with play and pause",
+};
 
+/** Bottom drawer for adding and removing widgets. Opened from the desktop menu "Edit Widgets...". */
 const WidgetGallery = () => {
-  const { isEditMode, setEditMode, addWidget } = useWidgetsStore();
+  const widgets = useWidgetsStore((s) => s.widgets);
+  const isEditMode = useWidgetsStore((s) => s.isEditMode);
+  const setEditMode = useWidgetsStore((s) => s.setEditMode);
+  const addWidget = useWidgetsStore((s) => s.addWidget);
+  const removeWidget = useWidgetsStore((s) => s.removeWidget);
 
+  if (!isEditMode) return null;
   return (
-    <>
-      {/* Floating Toggle Button to Edit Widgets */}
-      {!isEditMode && (
-        <button onClick={() => setEditMode(true)} className="widget-gallery-btn">
-          <span>✨</span> Edit Widgets
+    <div
+      role="dialog"
+      aria-label="Widget gallery"
+      className="fixed bottom-0 left-0 right-0 z-[100001] flex h-[200px] flex-col border-t border-white/15 text-white shadow-[0_-12px_40px_rgba(0,0,0,0.45)] animate-in slide-in-from-bottom-10 duration-200"
+      style={{ background: "rgba(28,28,30,0.78)", backdropFilter: "blur(40px) saturate(180%)", WebkitBackdropFilter: "blur(40px) saturate(180%)" }}
+      onContextMenu={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between border-b border-white/10 px-8 py-3">
+        <div>
+          <h2 className="text-sm font-bold">Edit Widgets</h2>
+          <p className="text-xs text-white/50">Add widgets, or drag them on the desktop to place them.</p>
+        </div>
+        <button type="button" onClick={() => setEditMode(false)} className="rounded-full bg-white px-5 py-1.5 text-sm font-bold text-black shadow-md hover:bg-zinc-200">
+          Done
         </button>
-      )}
-
-      {/* Slide-up Widget Gallery Drawer */}
-      <div className={`widget-gallery-drawer ${isEditMode ? "open" : ""}`}>
-        <div className="flex justify-between items-center px-8 py-3.5 border-b border-white/10 shrink-0">
-          <div className="flex flex-col">
-            <h2 className="text-white text-base font-bold">Widgets Gallery</h2>
-            <p className="text-gray-400 text-xs mt-0.5">Customise your macOS Desktop Layout</p>
-          </div>
-          <button
-            onClick={() => setEditMode(false)}
-            className="bg-white text-black hover:bg-gray-100 rounded-full px-5 py-1.5 text-sm font-bold shadow-md transition-all cursor-pointer"
-          >
-            Done
-          </button>
-        </div>
-
-        {/* Gallery Scroll Container */}
-        <div className="flex-1 flex gap-5 overflow-x-auto px-8 py-4 items-center scrollbar-thin">
-          {WIDGET_TEMPLATES.map((tmpl) => (
-            <div
-              key={tmpl.type}
-              className="w-52 h-[130px] rounded-xl bg-white/5 border border-white/10 hover:border-white/20 p-3.5 flex flex-col justify-between shrink-0 hover:bg-white/10 transition-all select-none group"
-            >
-              <div className="flex items-start gap-3">
-                <span className="text-3xl">{tmpl.icon}</span>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-white text-xs font-bold truncate">{tmpl.name}</span>
-                  <span className="text-[10px] text-gray-400 mt-0.5 leading-tight line-clamp-2">
-                    {tmpl.desc}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-[9px] text-gray-500 font-bold uppercase">{tmpl.size}</span>
-                <button
-                  onClick={() => addWidget(tmpl.type, tmpl.size)}
-                  className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-full px-3.5 py-1 transition-all cursor-pointer shadow-md hover:scale-[1.03]"
-                >
-                  + Add
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
-    </>
+      <div className="flex flex-1 items-center gap-4 overflow-x-auto px-8">
+        {WIDGET_KINDS.map((k) => {
+          const on = widgets.includes(k.type);
+          return (
+            <div key={k.type} className="flex h-[104px] w-52 shrink-0 flex-col justify-between rounded-xl border border-white/10 bg-white/5 p-3">
+              <div>
+                <div className="text-xs font-bold">{k.label}</div>
+                <div className="mt-0.5 text-[10px] leading-tight text-white/50">{DESCRIPTIONS[k.type]}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => (on ? removeWidget(k.type) : addWidget(k.type))}
+                className={`self-end rounded-full px-3.5 py-1 text-xs font-bold text-white shadow ${on ? "bg-white/20 hover:bg-red-500" : "bg-blue-500 hover:bg-blue-600"}`}
+              >
+                {on ? "Remove" : "+ Add"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 

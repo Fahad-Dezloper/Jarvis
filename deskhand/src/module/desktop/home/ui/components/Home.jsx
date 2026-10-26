@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef } from "react";
 import { locations } from "@constants";
-import { README_FILE } from "@constants/locations";
 import useLocationStore from "@store/location";
 import useWindowsStore from "@store/window";
+import useSystemStore from "@store/system";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { Draggable } from "gsap/Draggable";
@@ -12,17 +12,14 @@ import DesktopShortcut from "./DesktopShortcut";
 import DesktopContextMenu from "./DesktopContextMenu";
 import FolderRenameInput from "./FolderRenameInput";
 import useWidgetsStore from "@store/widgets";
+import { DESKTOP_BUILTINS } from "@module/desktop/system/builtins";
+import { WALLPAPERS } from "@module/desktop/system/wallpaperCore";
+import { autoPosition } from "@module/desktop/system/desktopItemsCore";
+import { locationFor } from "@module/desktop/system/syncLocations";
+import { openFileItem } from "@module/desktop/system/spotlight";
 
-const README_DESKTOP_FILE = { ...README_FILE, id: "desktop-readme", windowPosition: "top-[35vh] left-6" };
-const projects = [...(locations.work?.children ?? []), README_DESKTOP_FILE];
-const desktopWallpapers = [
-  { id: "wallpaper", label: "Wallpaper 1", src: "/wallpapers/wallpaper.webp" },
-  { id: "wallpaper2", label: "Wallpaper 2", src: "/wallpapers/wallpaper2.webp" },
-  { id: "wallpaper3", label: "Wallpaper 3", src: "/wallpapers/wallpaper3.webp" },
-  { id: "wallpaper4", label: "Wallpaper 4", src: "/wallpapers/wallpaper4.webp" },
-  { id: "wallpaper5", label: "Wallpaper 5", src: "/wallpapers/wallpaper5.webp" },
-  { id: "wallpaper6", label: "Wallpaper 6", src: "/wallpapers/wallpaper6.webp" },
-];
+const projects = DESKTOP_BUILTINS;
+const desktopWallpapers = WALLPAPERS;
 
 const Home = () => {
   const { setActiveLocation } = useLocationStore();
@@ -39,11 +36,14 @@ const Home = () => {
   } = useWindowsStore();
 
   const [contextMenu, setContextMenu] = useState(null);
-  const [customFolders, setCustomFolders] = useState([]);
-  const [deletedFolderIds, setDeletedFolderIds] = useState([]);
-  const [wallpaperIndex, setWallpaperIndex] = useState(0);
   const [editingFolderId, setEditingFolderId] = useState(null);
-  const [renamedProjects, setRenamedProjects] = useState({});
+  const wallpaperId = useSystemStore((state) => state.wallpaperId);
+  const setWallpaper = useSystemStore((state) => state.setWallpaper);
+  const systemItems = useSystemStore((state) => state.items);
+  const deletedFolderIds = useSystemStore((state) => state.deletedBuiltinIds);
+  const renamedProjects = useSystemStore((state) => state.renamedBuiltins);
+  const wallpaperIndex = Math.max(0, desktopWallpapers.findIndex((w) => w.id === wallpaperId));
+  const deskItems = systemItems.filter((i) => !i.parent);
   const suppressCustomFolderClickRef = useRef(null);
   const activeWidgets = useWidgetsStore((state) => state.widgets);
   const toggleWidget = useWidgetsStore((state) => state.toggleWidget);
@@ -56,21 +56,12 @@ const Home = () => {
   };
 
   const handleRenameProject = (projectId, newName) => {
-    if (newName && newName.trim()) {
-      setRenamedProjects((prev) => ({
-        ...prev,
-        [projectId]: newName.trim(),
-      }));
-    }
+    if (newName && newName.trim()) useSystemStore.getState().renameBuiltin(projectId, newName.trim());
     setEditingFolderId(null);
   };
 
   const handleRenameCustomFolder = (folderId, newName) => {
-    if (newName && newName.trim()) {
-      setCustomFolders((prev) =>
-        prev.map((f) => (f.id === folderId ? { ...f, name: newName.trim() } : f)),
-      );
-    }
+    if (newName && newName.trim()) useSystemStore.getState().renameItem(folderId, newName.trim());
     setEditingFolderId(null);
   };
 
@@ -136,18 +127,9 @@ const Home = () => {
         } else if (el.dataset.custom === "true") {
           const id = el.dataset.id;
           suppressCustomFolderClickRef.current = id;
-          setCustomFolders((prev) =>
-            prev.map((f) => {
-              if (f.id === id) {
-                return {
-                  ...f,
-                  x: (f.x || 0) + this.x,
-                  y: (f.y || 0) + this.y,
-                };
-              }
-              return f;
-            }),
-          );
+          const left = parseFloat(el.style.left || 0) + this.x;
+          const top = parseFloat(el.style.top || 0) + this.y;
+          useSystemStore.getState().moveItem(id, left, top);
           gsap.set(el, { x: 0, y: 0 });
         }
       },
@@ -160,7 +142,7 @@ const Home = () => {
       document.body.classList.remove("folder-dragging");
       instances.forEach((instance) => instance.kill());
     };
-  }, [desktopShortcuts, customFolders, deletedFolderIds]);
+  }, [desktopShortcuts, systemItems, deletedFolderIds]);
 
   // Context Menu Handlers
   const handleDesktopContextMenu = (e) => {
@@ -205,19 +187,10 @@ const Home = () => {
   }, []);
 
   const handleNewFolder = () => {
-    const newId = `folder-custom-${Date.now()}`;
     const x = Math.max(20, Math.min(contextMenu?.x || 100, window.innerWidth - 120));
     const y = Math.max(50, Math.min((contextMenu?.y || 100) - 35, window.innerHeight - 150));
-    setCustomFolders((prev) => [
-      ...prev,
-      {
-        id: newId,
-        name: "Untitled Folder",
-        isCustom: true,
-        x,
-        y,
-      },
-    ]);
+    const item = useSystemStore.getState().createItem("folder", "untitled folder", { x, y });
+    setEditingFolderId(item.id);
   };
 
   const handleGetInfo = (target) => {
@@ -229,11 +202,7 @@ const Home = () => {
   };
 
   const handleChangeWallpaper = (wallpaper) => {
-    const nextIdx = desktopWallpapers.findIndex((item) => item.id === wallpaper.id);
-    if (nextIdx === -1) return;
-
-    setWallpaperIndex(nextIdx);
-    document.body.style.backgroundImage = `url("${wallpaper.src}")`;
+    if (wallpaper?.id) setWallpaper(wallpaper.id);
   };
 
   const handleOpenProjects = () => {
@@ -257,29 +226,11 @@ const Home = () => {
 
   const handleDeleteFolder = (target) => {
     if (!target) return;
-    const targetId = target.id;
-    if (target.isCustom) {
-      setCustomFolders((prev) => prev.filter((f) => f.id !== targetId));
-    } else {
-      setDeletedFolderIds((prev) => [...prev, targetId]);
-    }
-
-    try {
-      if (locations.trash && Array.isArray(locations.trash.children)) {
-        const exists = locations.trash.children.some((item) => item.name === target.name);
-        if (!exists) {
-          locations.trash.children.push({
-            id: Date.now(),
-            name: target.name || "Untitled Folder",
-            type: "folder",
-            icon: "/system/icons/files/folder.webp",
-          });
-        }
-      }
-    } catch {
-      // ignore
-    }
+    if (target.isCustom) useSystemStore.getState().trashItemById(target.id);
+    else useSystemStore.getState().trashBuiltin(target.id, target.name || "Untitled Folder", target.kind === "file" ? "file" : "folder");
   };
+
+  const openDeskItem = (item) => openFileItem(locationFor(item));
 
   return (
     <section
@@ -301,17 +252,28 @@ const Home = () => {
           />
         ))}
 
-        {customFolders.map((folder) => {
+        {deskItems.map((folder, index) => {
           const isEditing = editingFolderId === folder.id;
+          const pos =
+            Number.isFinite(folder.x) && Number.isFinite(folder.y)
+              ? { x: folder.x, y: folder.y }
+              : autoPosition(index, { width: window.innerWidth, height: window.innerHeight });
+          const icon =
+            folder.kind === "folder"
+              ? "/system/icons/files/folder.webp"
+              : folder.kind === "image"
+                ? folder.src || "/system/icons/files/image.webp"
+                : "/system/icons/files/txt.webp";
           return (
             <li
               key={folder.id}
               data-id={folder.id}
               data-custom="true"
+              data-desktop-item={folder.name}
               className="folder cursor-default absolute select-none flex items-center flex-col"
               style={{
-                left: `${folder.x}px`,
-                top: `${folder.y}px`,
+                left: `${pos.x}px`,
+                top: `${pos.y}px`,
               }}
               onPointerDown={() => {
                 suppressCustomFolderClickRef.current = null;
@@ -321,13 +283,13 @@ const Home = () => {
                   suppressCustomFolderClickRef.current = null;
                   return;
                 }
-                if (!isEditing) openWindow("finder");
+                if (!isEditing) openDeskItem(folder);
               }}
-              onContextMenu={(e) => handleFolderContextMenu(e, folder)}
+              onContextMenu={(e) => handleFolderContextMenu(e, { ...folder, isCustom: true })}
             >
               <div className="w-[62px] h-[52px] flex items-center justify-center pointer-events-none">
                 <OptimizedImage
-                  src="/system/icons/files/folder.webp"
+                  src={icon}
                   alt={folder.name}
                   width={62}
                   height={52}

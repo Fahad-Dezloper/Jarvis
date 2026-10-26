@@ -1,5 +1,6 @@
 import { dockApps, locations } from "@constants";
 import useWindowsStore from "@store/window";
+import useSystemStore from "@store/system";
 import useLocationStore from "@store/location";
 import { Fragment, useMemo, useState, useRef, useEffect, useCallback } from "react";
 import gsap from "gsap";
@@ -22,6 +23,8 @@ const Dock = () => {
   const [draggedAppId, setDraggedAppId] = useState(null);
   const draggedAppIdRef = useRef(null);
   const dragStartTimerRef = useRef(null);
+  const dockAutohide = useSystemStore((state) => state.dockAutohide);
+  const trashCount = useSystemStore((state) => state.trash.length);
   const dockRef = useDock();
 
   const resetAllIcons = () => {
@@ -198,7 +201,7 @@ const Dock = () => {
   return (
     <section
       id="dock"
-      className={isAnyWindowMaximized || isDockHiddenByCollision ? "dock-hidden" : ""}
+      className={`${isAnyWindowMaximized || isDockHiddenByCollision ? "dock-hidden" : ""} ${dockAutohide ? "dock-autohide" : ""}`.trim()}
       aria-label="Dock"
     >
       <div ref={dockRef} className="dock-container">
@@ -227,6 +230,7 @@ const Dock = () => {
               onDragOver={(e) => handleDragOver(e, id)}
               onDragEnd={handleDragEnd}
               isDragging={draggedAppId === id}
+              badge={id === "trash" ? trashCount : 0}
               style={{
                 opacity: draggedAppId === id ? 0.3 : 1,
               }}

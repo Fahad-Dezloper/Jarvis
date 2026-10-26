@@ -37,6 +37,7 @@ const DockIcon = ({
   onDragEnd,
   isDragging,
   style,
+  badge = 0,
 }) => {
   const { id, name, icon, canOpen } = app;
   const isOpen = Boolean(state?.isOpen);
@@ -125,6 +126,14 @@ const DockIcon = ({
             />
           )}
         </span>
+        {badge > 0 && (
+          <span
+            className="absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full bg-[#ff3b30] px-1 text-[9px] font-bold leading-none text-white"
+            aria-label={`${badge} items`}
+          >
+            {badge}
+          </span>
+        )}
         {isOpen && <span className="dock-running-dot" aria-hidden="true" />}
       </button>
     </div>

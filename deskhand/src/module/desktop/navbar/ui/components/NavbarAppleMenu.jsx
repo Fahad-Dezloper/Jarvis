@@ -1,4 +1,5 @@
 import NavbarPowerMenu from "./NavbarPowerMenu";
+import useSystemStore from "@store/system";
 
 const NavbarAppleMenu = ({
   isAppleMenuOpen,
@@ -28,7 +29,7 @@ const NavbarAppleMenu = ({
       { label: "Force Quit...", meta: "⌥⌘⎋", onClick: () => setIsAsleep(true) },
     ],
     [
-      { label: "Lock Screen", meta: "⌃⌘Q", onClick: () => setIsAsleep(true) },
+      { label: "Lock Screen", meta: "⌃⌘Q", onClick: () => useSystemStore.getState().setLocked(true) },
       { label: "Log Out Guest...", meta: "⇧⌘Q", onClick: () => setIsAsleep(true) },
     ],
   ];

@@ -14,7 +14,18 @@ const KEY_MAP = {
   firewall: "firewall",
   darkmode: "darkMode",
   thunderbolt: "thunderbolt",
+  airplane: "airplane",
+  airplanemode: "airplane",
+  flightmode: "airplane",
+  showbatterypercentage: "showBatteryPercentage",
+  batterypercentage: "showBatteryPercentage",
+  optimizedbatterycharging: "optimizedBatteryCharging",
+  lowpowermode: "lowPowerMode",
+  lowpower: "lowPowerMode",
+  batterysaver: "lowPowerMode",
 };
+
+export const SETTING_KEYS_HELP = "wifi, bluetooth, airdrop, focus mode / do not disturb, night light, vpn, firewall, dark mode, airplane mode, low power mode, battery percentage";
 
 export function normalizeSettingKey(key) {
   const k = String(key ?? "")

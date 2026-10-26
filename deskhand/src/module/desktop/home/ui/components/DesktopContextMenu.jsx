@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { WIDGET_OPTIONS } from "@store/widgets";
+import useWidgetsStore, { WIDGET_OPTIONS } from "@store/widgets";
 import useTimeStore from "@store/time";
 import WEATHER_DATA from "@module/desktop/apps/weather/data/weatherData";
 import AnalogClockFace from "@module/desktop/widgets/ui/components/AnalogClockFace";
@@ -38,6 +38,18 @@ const WidgetPreview = ({ type }) => {
         <span className="mt-1 text-[8px] leading-tight text-zinc-500">
           Ideas, reminders, and things to remember.
         </span>
+      </div>
+    );
+  }
+
+  if (type === "music") {
+    return (
+      <div className="flex h-full w-full items-center gap-2.5 bg-gradient-to-br from-zinc-700/70 to-zinc-900/80 px-3 text-white">
+        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-zinc-500/60 text-lg">🎵</span>
+        <div>
+          <span className="block text-[11px] font-medium">Now Playing</span>
+          <span className="text-[9px] text-white/60">Play and pause</span>
+        </div>
       </div>
     );
   }
@@ -458,6 +470,16 @@ const DesktopContextMenu = ({
                     );
                   })}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useWidgetsStore.getState().setEditMode(true);
+                    onClose();
+                  }}
+                  className="mt-2 flex h-[26px] w-full items-center rounded-[5px] px-2 text-left text-[12px] text-white/90 transition-colors hover:bg-[#0a7cff] cursor-default"
+                >
+                  Edit Widgets...
+                </button>
               </div>
             )}
           </div>

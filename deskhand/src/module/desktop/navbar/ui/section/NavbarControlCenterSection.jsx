@@ -6,6 +6,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import useWindowsStore from "@store/window";
 import useLocationStore from "@store/location";
+import useSystemStore from "@store/system";
+import { searchSpotlight } from "@module/desktop/system/spotlight";
 import { User, Cloud, ShoppingBag, Users, Lock, Settings } from "lucide-react";
 
 const CalendarIcon = ({ sizeClass = "w-[26px] h-[26px] rounded-[5px]" }) => {
@@ -59,6 +61,18 @@ const NavbarControlCenterSection = ({
 
   const [activeMenu, setActiveMenu] = useState(null); // 'wifi' | 'bluetooth' | 'user' | 'battery' | 'spotlight' | 'control' | null
   const [spotlightQuery, setSpotlightQuery] = useState("");
+  const spotlightRequest = useSystemStore((state) => state.spotlight);
+  const toggleNotificationCenter = () => {
+    const st = useSystemStore.getState();
+    st.setNotificationCenterOpen(!st.notificationCenterOpen);
+  };
+
+  // Voice or keyboard requests to open Spotlight (see system handlers).
+  useEffect(() => {
+    if (!spotlightRequest.nonce) return;
+    setActiveMenu("spotlight");
+    setSpotlightQuery(spotlightRequest.query || "");
+  }, [spotlightRequest]);
   const [connectingDevice, setConnectingDevice] = useState(null);
   const [connectingWifi, setConnectingWifi] = useState(null);
   const [promptingWifiNetwork, setPromptingWifiNetwork] = useState(null);
@@ -254,13 +268,29 @@ const NavbarControlCenterSection = ({
     },
   ];
 
-  const filteredApps = spotlightQuery.trim()
+  const appMatches = spotlightQuery.trim()
     ? searchableApps.filter(
         (app) =>
           app.name.toLowerCase().includes(spotlightQuery.toLowerCase()) ||
           app.desc.toLowerCase().includes(spotlightQuery.toLowerCase()),
       )
     : [];
+  // Files, folders and settings panes from the desktop (apps are already listed above).
+  const extraMatches = spotlightQuery.trim()
+    ? searchSpotlight(spotlightQuery, 8)
+        .filter((m) => m.kind !== "app")
+        .map((m) => ({ name: m.name, desc: m.desc, key: `__${m.kind}:${m.name}`, icon: m.kind === "setting" ? "⚙️" : m.kind === "folder" ? "📁" : "📄", open: m.open }))
+    : [];
+  const filteredApps = [...appMatches, ...extraMatches];
+
+  const launchResult = (app) => {
+    if (app.open) {
+      setActiveMenu(null);
+      app.open();
+      return;
+    }
+    handleLaunchApp(app.key);
+  };
 
   const handleLaunchApp = (appKey, data = null) => {
     setActiveMenu(null);
@@ -274,7 +304,7 @@ const NavbarControlCenterSection = ({
 
   const handleSpotlightKeyDown = (e) => {
     if (e.key === "Enter" && filteredApps.length > 0) {
-      handleLaunchApp(filteredApps[0].key);
+      launchResult(filteredApps[0]);
     }
   };
 
@@ -765,7 +795,9 @@ const NavbarControlCenterSection = ({
         </li>
       </ul>
 
-      <NavbarDateTime now={now} />
+      <span onClick={toggleNotificationCenter} role="button" tabIndex={-1} className="h-full flex items-center cursor-default">
+        <NavbarDateTime now={now} />
+      </span>
 
       {/* Control Center Toggle Dropdown */}
       {activeMenu === "control" && (
@@ -828,7 +860,7 @@ const NavbarControlCenterSection = ({
                     className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg cursor-pointer transition-colors ${
                       idx === 0 ? "bg-[#007aff] text-white" : "hover:bg-white/5 text-white"
                     }`}
-                    onClick={() => handleLaunchApp(app.key)}
+                    onClick={() => launchResult(app)}
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
                       {app.key === "calendar" ? (
