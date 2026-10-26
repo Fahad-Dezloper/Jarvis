@@ -16,6 +16,7 @@ const APP_NAMES = {
   photos: "Photos",
   calendar: "Calendar",
   weather: "Weather",
+  mail: "Mail",
   messages: "Messages",
   map: "Maps",
   appstore: "App Store",
@@ -43,6 +44,7 @@ const SYNONYMS = [
   ["photos", ["photos", "gallery"]],
   ["calendar", ["calendar"]],
   ["weather", ["weather"]],
+  ["mail", ["mail app", "mail", "inbox"]],
   ["messages", ["messages", "imessage"]],
   ["map", ["maps", "map"]],
   ["appstore", ["app store"]],
@@ -115,14 +117,182 @@ function frontWindow(snap) {
   return open[0]?.key ?? null;
 }
 
+
+// ---------- multi-step asks (offline versions) ----------
+// These need information back from an app, so the plan carries a `followup`
+// descriptor (see followups.js) that the loop resolves from the observations.
+
+const TIME_WORDS =
+  /\b(?:today|tonight|tomorrow|day after tomorrow|(?:this|next|on)\s+(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*|(?:mon|tues?|wed(?:nes)?|thu(?:rs)?|fri|sat(?:ur)?|sun)[a-z]*day|next (?:week|month)|at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?|\d{1,2}(?::\d{2})?\s*(?:am|pm)|noon|midnight|in\s+\d+\s+(?:minutes?|hours?|days?|weeks?))\b/i;
+
+const tidy = (s) => s.replace(/\s+/g, " ").replace(/^[\s,.-]+|[\s,.-]+$/g, "").trim();
+const capital = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const WORD_OPS = [
+  [/\bmultiplied by\b|\btimes\b/gi, "*"],
+  [/\bdivided by\b|\bover\b/gi, "/"],
+  [/\bplus\b/gi, "+"],
+  [/\bminus\b/gi, "-"],
+  [/\bto the power of\b/gi, "^"],
+  [/(?<=\d)\s*x\s*(?=\d)/gi, "*"],
+  [/[×]/g, "*"],
+  [/[÷]/g, "/"],
+];
+
+function arithmeticExpression(t) {
+  const pct = /(\d[\d,.]*)\s*(?:%|percent)\s+of\s+(\d[\d,.]*)/i.exec(t);
+  if (pct) return `${pct[1]}% of ${pct[2]}`;
+  const m = /^(?:what(?:'s| is)|whats|calculate|compute|how much is|work out|solve|figure out)\s+(.+)$/i.exec(t);
+  if (!m) return null;
+  let e = m[1];
+  for (const [re, to] of WORD_OPS) e = e.replace(re, ` ${to} `);
+  e = tidy(e);
+  if (/^[\d\s.,+\-*/()^%]+$/.test(e) && /\d/.test(e) && /[+\-*/^%]/.test(e.replace(/^-/, ""))) return e.replace(/\s+/g, " ");
+  return null;
+}
+
+function parseWhich(t) {
+  if (/\b(?:latest|newest|most recent|recent|last)\b/i.test(t)) return "latest";
+  if (/\b(?:first|top|1st|best match)\b/i.test(t)) return "first";
+  if (/\b(?:second|2nd)\b/i.test(t)) return "2";
+  if (/\b(?:third|3rd)\b/i.test(t)) return "3";
+  return "first";
+}
+
+/**
+ * @returns {import("../contract").PlanResult & {done:boolean, followup?:object}} | null
+ */
+function planComplex(cleaned, ctx) {
+  const snap = ctx.snapshot ?? null;
+  const t = cleaned;
+  const visible = new Set((snap?.windows ?? []).filter((w) => !w.minimized).map((w) => w.key));
+  const out = (actions, reply, followup) => ({
+    actions,
+    reply,
+    source: "rules",
+    done: !followup,
+    ...(followup ? { followup } : {}),
+    ...(ctx.note ? { note: ctx.note } : {}),
+  });
+  const openIf = (key) => (visible.has(key) ? [] : [{ type: "open", window: key }]);
+  let m;
+
+  // --- read the open project and explain it (Claude Code) ---
+  const asksProject =
+    /\b(?:read|explain|summari[sz]e|understand|go through|look (?:at|through)|analy[sz]e|review|tell me (?:what|about)|what(?:'s| is| does)|walk me through)\b/i.test(t) &&
+    /\b(?:project|folder|repo(?:sitory)?|codebase|everything|code base)\b/i.test(t);
+  if (asksProject && (/\b(?:claude code|terminal)\b/i.test(t) || /\b(?:this|the|my|open)\s+(?:project|codebase|repo|folder)\b/i.test(t)) && !/\bnotes?\b/i.test(t)) {
+    return out(
+      [
+        ...openIf("terminal"),
+        { type: "invoke", app: "terminal", name: "run_command", args: { command: 'claude "read this project and explain it"' } },
+        { type: "invoke", app: "terminal", name: "read_project", args: {} },
+      ],
+      "Opening Claude Code and reading the project.",
+      { kind: "project_summary" },
+    );
+  }
+
+  // --- browser search (optionally open a result) ---
+  if (
+    (m = /^(?:(?:open|launch|start|go to)\s+(?:the\s+)?(?:google\s+)?(chrome|safari|browser|web browser)(?:\s+browser)?[\s,]*(?:and\s+)?(?:then\s+)?)?(?:search(?:\s+the web)?|google|look up|look for|find|research)\s+(?:for\s+|up\s+)?(.+)$/i.exec(t)) &&
+    (m[1] || /^(?:search|google|look up)/i.test(t))
+  ) {
+    let q = m[2];
+    let opened = false;
+    let which = "first";
+    const tail = /^(.*?)[\s,]+(?:and\s+)?(?:then\s+)?(?:open|click|go to|show(?: me)?|pull up|read)\s+(?:me\s+)?(?:the\s+|a\s+)?(.*)$/i.exec(q);
+    if (tail) {
+      q = tail[1];
+      opened = true;
+      which = parseWhich(tail[2]);
+    }
+    q = tidy(q.replace(/\s+(?:for me|please|online|on the web|on google|in (?:chrome|safari|the browser))$/i, ""));
+    if (q) {
+      const papers = /\b(?:papers?|research|paradigm|arxiv|study|studies|journal)\b/i.test(q);
+      const browser = /\bsafari\b/i.test(t) ? "safari" : "chrome";
+      const actions = [
+        ...openIf(browser),
+        { type: "invoke", app: "browser", name: "search", args: { query: q, source: papers ? "papers" : "web" } },
+        ...(opened ? [{ type: "invoke", app: "browser", name: "open_result", args: { which } }] : []),
+      ];
+      return out(actions, `Searching for ${q}${opened ? " and opening the result" : ""}.`, { kind: "search_report", opened });
+    }
+  }
+
+  // --- arithmetic ---
+  const expr = arithmeticExpression(t);
+  if (expr) {
+    return out([...openIf("calculator"), { type: "invoke", app: "calculator", name: "compute", args: { expression: expr } }], `Calculating ${expr}.`, { kind: "answer" });
+  }
+
+  // --- weather ---
+  if ((m = /\bweather\b.*?\b(?:in|for|at|of)\s+(.+)$/i.exec(t)) || (m = /\bhow(?:'s| is)\s+(?:it|the weather)\s+(?:looking\s+)?(?:in|at)\s+(.+)$/i.exec(t))) {
+    const city = tidy(m[1].replace(/\b(?:today|tonight|tomorrow|right now|now|please|like)\b/gi, ""));
+    if (city) {
+      return out([...openIf("weather"), { type: "invoke", app: "weather", name: "show", args: { city } }], `Checking the weather in ${city}.`, { kind: "answer" });
+    }
+  }
+
+  // --- mail ---
+  if ((m = /^(?:send\s+(?:an?\s+)?e-?mail\s+to|write\s+(?:an?\s+)?e-?mail\s+to|compose\s+(?:an?\s+)?e-?mail\s+to|e-?mail|mail)\s+(\S+)\s*(.*)$/i.exec(t))) {
+    const to = m[1].replace(/[,.]+$/, "");
+    let rest = tidy(m[2]);
+    let body;
+    const saying = /^(?:saying|that says|telling (?:him|her|them)|with the message|and say|and tell (?:him|her|them))\s+(.+)$/i.exec(rest);
+    const about = /^(?:about|regarding|re:?)\s+(.+)$/i.exec(rest);
+    if (saying) {
+      body = saying[1];
+      rest = "";
+    } else if (about) rest = about[1];
+    rest = tidy(rest.replace(/^the\s+/i, ""));
+    const subject = rest ? capital(rest) : "";
+    if (!body) body = rest ? `Hi ${capital(to)}, here are the ${rest.replace(/^(?:my|our)\s+/i, "")}.` : `Hi ${capital(to)},`;
+    return out(
+      [...openIf("mail"), { type: "invoke", app: "mail", name: "compose", args: { to, subject, body } }],
+      `Drafting an email to ${capital(to)}. Say "send it" when you want it sent.`,
+      { kind: "answer" },
+    );
+  }
+  if (/^send\s+(?:it|the e-?mail|this e-?mail|the message|that)\s*(?:now)?$/i.test(t) && visible.has("mail")) {
+    return out([{ type: "invoke", app: "mail", name: "send", args: {} }], "Sending the email.", { kind: "answer" });
+  }
+
+  // --- calendar ---
+  if ((m = /^(?:add|put|schedule|create|set up|book|make)\s+(?:an?\s+)?(?:event\s+|meeting\s+)?(.+?)(?:\s+(?:to|on|in|into|onto)\s+(?:my\s+|the\s+)?calendar)(?:\s+(.*))?$/i.exec(t)) ||
+      (m = /^schedule\s+(.+)$/i.exec(t))) {
+    let title = tidy(m[1]);
+    let when = tidy(m[2] ?? "");
+    const tm = TIME_WORDS.exec(title);
+    if (tm) {
+      when = tidy(`${title.slice(tm.index)} ${when}`);
+      title = tidy(title.slice(0, tm.index));
+    }
+    title = title.replace(/\s+(?:on|at|for)$/i, "");
+    if (title) {
+      return out(
+        [...openIf("calendar"), { type: "invoke", app: "calendar", name: "add_event", args: { title: capital(title), ...(when ? { when } : {}) } }],
+        `Adding ${title}${when ? ` ${when}` : ""} to your calendar.`,
+        { kind: "answer" },
+      );
+    }
+  }
+  if (/\b(?:what(?:'s| is)|whats|show|read|list|check)\b.*\b(?:on |in )?(?:my )?(?:calendar|schedule|agenda)\b/i.test(t) || /\bwhat do i have (?:today|tomorrow|coming up|on)\b/i.test(t)) {
+    return out([...openIf("calendar"), { type: "invoke", app: "calendar", name: "list_events", args: {} }], "Checking your calendar.", { kind: "answer" });
+  }
+  return null;
+}
+
 /**
  * @param {string} text
  * @param {{history?:{command:string,reply:string}[], snapshot?:object}} [ctx]
- * @returns {import("../contract").PlanResult}
+ * @returns {import("../contract").PlanResult & {done:boolean, followup?:object}}
  */
 export function planWithRules(text, ctx = {}) {
   const snap = ctx.snapshot ?? null;
   const cleaned = cleanText(text);
+  const complex = planComplex(cleaned, ctx);
+  if (complex) return complex;
   const segments = splitCommand(cleaned);
   const actions = [];
   const phrases = [];
@@ -498,11 +668,11 @@ export function planWithRules(text, ctx = {}) {
     const reply = unknown.length
       ? `Sorry, I can't do that without the AI model. Offline I can open and close apps, tile windows, play music, run terminal commands, and take notes.`
       : "No windows are open.";
-    return { actions: sayOnly ? actions : [], reply: sayOnly ? "No windows are open." : reply, source: "rules", ...(ctx.note ? { note: ctx.note } : {}) };
+    return { actions: sayOnly ? actions : [], reply: sayOnly ? "No windows are open." : reply, source: "rules", done: true, ...(ctx.note ? { note: ctx.note } : {}) };
   }
 
   let reply = phrases.length ? phrases.join(", then ") : "Done";
   reply = reply.charAt(0).toUpperCase() + reply.slice(1) + ".";
   if (unknown.length) reply += ` I couldn't handle: "${unknown.join('", "')}".`;
-  return { actions: actions.slice(0, 8), reply, source: "rules", ...(ctx.note ? { note: ctx.note } : {}) };
+  return { actions: actions.slice(0, 8), reply, source: "rules", done: true, ...(ctx.note ? { note: ctx.note } : {}) };
 }

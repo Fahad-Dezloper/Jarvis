@@ -1,7 +1,10 @@
-// Orry engine entry. runCommand(text) builds a snapshot, asks /api/act for a
-// plan (model path), falls back to the offline rules when that is unavailable,
-// then executes the validated actions one at a time.
+// Orry engine entry. runCommand(text) runs the multi-step agent loop (loop.js):
+// snapshot -> plan the next batch via /api/act (model) or the offline rules ->
+// execute -> feed each handler's result back as an observation -> repeat until
+// the planner says it is done or the round/time budget is spent.
 import { executeAction, targetRect } from "./executor.js";
+import { resolveFollowup, sanitizeFollowup } from "./followups.js";
+import { runLoop } from "./loop.js";
 import { planWithRules } from "./rules.js";
 import { sanitizeActions } from "./schema.js";
 import { buildSnapshot, installClipboardTap } from "./snapshot.js";
@@ -22,16 +25,19 @@ const sleep = (ms, signal) =>
     );
   });
 
-async function requestPlan(text, snapshot, history, signal) {
+const newCommandId = () => (globalThis.crypto?.randomUUID?.() ?? `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`).slice(0, 64);
+
+async function requestPlan(req, commandId, signal) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  const remaining = Number.isFinite(req.deadline) ? req.deadline - Date.now() : FETCH_TIMEOUT_MS;
+  const timer = setTimeout(() => ctrl.abort(), Math.max(8_000, Math.min(FETCH_TIMEOUT_MS, remaining + 5_000)));
   const onAbort = () => ctrl.abort();
   signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const res = await fetch("/api/act", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ command: text, snapshot, history }),
+      body: JSON.stringify({ command: req.command, snapshot: req.snapshot, history: req.history, observations: req.observations, round: req.round, commandId }),
       signal: ctrl.signal,
     });
     if (!res.ok) throw new Error(res.status === 429 ? "Rate limited" : "The planner service returned an error");
@@ -39,9 +45,12 @@ async function requestPlan(text, snapshot, history, signal) {
     if (!plan || !Array.isArray(plan.actions) || typeof plan.reply !== "string") {
       throw new Error("The planner returned an unexpected reply");
     }
+    const followup = sanitizeFollowup(plan.followup);
     return {
       actions: sanitizeActions(plan.actions),
       reply: plan.reply,
+      done: followup ? false : plan.done !== false,
+      ...(followup ? { followup } : {}),
       source: plan.source === "model" ? "model" : "rules",
       ...(plan.note ? { note: String(plan.note) } : {}),
     };
@@ -51,70 +60,41 @@ async function requestPlan(text, snapshot, history, signal) {
   }
 }
 
-/** @type {import("../contract").RunCommand} */
-export async function runCommand(text, opts = {}) {
-  const { history = [], onEvent, signal } = opts;
-  const emit = (e) => {
+/** Round 1 falls back to the offline rules when the service is unreachable; later rounds report the failure. */
+function makePlanner(signal) {
+  const commandId = newCommandId();
+  return async (req) => {
     try {
-      onEvent?.(e);
-    } catch {
-      /* UI errors must not break a run */
+      if (!req.snapshot) throw new Error("no snapshot");
+      return await requestPlan(req, commandId, signal);
+    } catch (e) {
+      if (signal?.aborted || req.round > 1) throw e;
+      const note = /Rate limited/.test(e?.message)
+        ? "Too many AI requests, so the offline rules planned this."
+        : "The AI planner was unreachable, so the offline rules planned this.";
+      const plan = planWithRules(req.command, { history: req.history, snapshot: req.snapshot ?? undefined, note });
+      const followup = sanitizeFollowup(plan.followup);
+      return { ...plan, actions: sanitizeActions(plan.actions), ...(followup ? { followup, done: false } : { done: true }) };
     }
   };
-  const command = String(text ?? "").trim();
-  if (!command) {
-    const reply = "I didn't hear anything.";
-    emit({ type: "done", reply, ok: false });
-    return { reply, source: "rules", ok: false };
-  }
+}
 
-  let snapshot;
+/** @type {import("../contract").RunCommand} */
+export async function runCommand(text, opts = {}) {
   try {
     installClipboardTap();
-    snapshot = buildSnapshot();
   } catch {
-    snapshot = null;
+    /* clipboard tap is best effort */
   }
-
-  let plan;
-  try {
-    if (!snapshot) throw new Error("no snapshot");
-    plan = await requestPlan(command, snapshot, history, signal);
-  } catch (e) {
-    if (signal?.aborted) {
-      emit({ type: "done", reply: "Cancelled.", ok: false });
-      return { reply: "Cancelled.", source: "rules", ok: false };
-    }
-    const note = /Rate limited/.test(e?.message)
-      ? "Too many AI requests, so the offline rules planned this."
-      : "The AI planner was unreachable, so the offline rules planned this.";
-    plan = planWithRules(command, { history, snapshot: snapshot ?? undefined, note });
-    plan.actions = sanitizeActions(plan.actions);
-  }
-
-  emit({ type: "plan", actions: plan.actions, reply: plan.reply, source: plan.source, ...(plan.note ? { note: plan.note } : {}) });
-
-  for (let i = 0; i < plan.actions.length; i++) {
-    if (signal?.aborted) {
-      emit({ type: "done", reply: "Cancelled.", ok: false });
-      return { reply: "Cancelled.", source: plan.source, ok: false };
-    }
-    const action = plan.actions[i];
-    emit({ type: "step", index: i, action, status: "start", rect: targetRect(action) });
-    const res = await executeAction(action);
-    emit({ type: "step", index: i, action, status: res.ok ? "ok" : "fail", message: res.message, rect: targetRect(action) });
-    if (!res.ok) {
-      // A failed step usually breaks what follows (a missing window, say), so stop honestly.
-      const reply = `${plan.reply} I stopped because: ${res.message}.`;
-      emit({ type: "done", reply, ok: false });
-      return { reply, source: plan.source, ok: false };
-    }
-    if (i < plan.actions.length - 1) await sleep(STEP_DELAY_MS, signal);
-  }
-
-  const ok = plan.actions.length > 0;
-  emit({ type: "done", reply: plan.reply, ok });
-  return { reply: plan.reply, source: plan.source, ok };
+  return runLoop(text, opts, {
+    snapshot: () => buildSnapshot(),
+    plan: makePlanner(opts.signal),
+    execute: executeAction,
+    rect: targetRect,
+    resolveFollowup,
+    sleep,
+    stepDelayMs: STEP_DELAY_MS,
+  });
 }
 
 if (typeof window !== "undefined" && process.env.NODE_ENV !== "production") {

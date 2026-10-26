@@ -25,6 +25,20 @@ const ok = (message) => ({ ok: true, message });
 const fail = (message) => ({ ok: false, message });
 const MOVE_SECONDS = 0.5;
 const INVOKE_TIMEOUT_MS = 5000;
+const DATA_MAX_CHARS = 6000;
+/** Slower handlers (searching, reading, fetching) get longer than the 5s default. */
+const SLOW_INVOKE_TIMEOUT_MS = 15_000;
+const SLOW_HANDLERS = new Set([
+  "browser.search",
+  "browser.open_result",
+  "browser.read_page",
+  "terminal.read_project",
+  "terminal.run_command",
+  "finder.read_file",
+  "weather.show",
+  "calendar.list_events",
+]);
+export const invokeTimeout = (app, name) => (SLOW_HANDLERS.has(`${app}.${name}`) ? SLOW_INVOKE_TIMEOUT_MS : INVOKE_TIMEOUT_MS);
 
 const areaRect = () => {
   const a = getViewportArea();
@@ -237,7 +251,7 @@ async function doInvoke(action) {
       args[k] = v.split(CLIPBOARD_TOKEN).join(clip);
     }
   }
-  const appeared = await waitFor(() => getHandlers(app)?.[name], 2500, 100);
+  const appeared = await waitFor(() => getHandlers(app)?.[name], 4000, 100);
   const fn = getHandlers(app)?.[name];
   if (!appeared || typeof fn !== "function") {
     const fb = storeFallback(app, name, args);
@@ -245,15 +259,17 @@ async function doInvoke(action) {
     return fail(`The ${app} app is not ready for "${name}"`);
   }
   try {
-    const res = await withTimeout(Promise.resolve(fn(args)), INVOKE_TIMEOUT_MS);
+    const limit = invokeTimeout(app, name);
+    const res = await withTimeout(Promise.resolve(fn(args)), limit);
     const out = { ok: !!res?.ok, message: String(res?.message ?? (res?.ok ? "Done" : "Failed")) };
+    if (typeof res?.data === "string" && res.data) out.data = res.data.length > DATA_MAX_CHARS ? `${res.data.slice(0, DATA_MAX_CHARS)}\u2026` : res.data;
     if (out.ok && app === "browser" && name === "copy_link") {
       const url = /https?:\/\/\S+/.exec(out.message)?.[0];
       if (url) setInternalClipboard(url);
     }
     return out;
   } catch (e) {
-    return fail(e?.message === "timed out" ? `${app}.${name} took longer than 5 seconds` : `${app}.${name} failed`);
+    return fail(e?.message === "timed out" ? `${app}.${name} took longer than ${Math.round(invokeTimeout(app, name) / 1000)} seconds` : `${app}.${name} failed`);
   }
 }
 
@@ -281,7 +297,7 @@ export function targetRect(action) {
   return undefined;
 }
 
-/** @returns {Promise<{ok:boolean,message:string}>} */
+/** @returns {Promise<{ok:boolean,message:string,data?:string}>} */
 export async function executeAction(action) {
   try {
     const s = store();

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { sanitizeFollowup } from "../../../deskhand/engine/followups.js";
+import { cleanObservations, summarizeObservations } from "../../../deskhand/engine/loop.js";
 import { hasKey, planWithModel } from "../../../deskhand/engine/model.js";
 import { planWithRules } from "../../../deskhand/engine/rules.js";
 import { sanitizeActions } from "../../../deskhand/engine/schema.js";
@@ -8,10 +10,16 @@ export const maxDuration = 60;
 
 // Best-effort rate limit: an in-memory sliding window per IP. On serverless
 // every instance has its own memory, so this only slows a single hot instance;
-// it is not a hard guarantee.
-const LIMIT = 20;
+// it is not a hard guarantee. One voice task uses several rounds, so the
+// window is wider than one request per command.
+const LIMIT = 30;
 const WINDOW_MS = 60_000;
 const hits = new Map();
+
+// Hard cap on model calls for one command (same caveat: per instance memory).
+const MAX_MODEL_CALLS_PER_COMMAND = 8;
+const COMMAND_TTL_MS = 3 * 60_000;
+const commandCalls = new Map();
 
 function limited(ip) {
   const now = Date.now();
@@ -23,6 +31,20 @@ function limited(ip) {
   recent.push(now);
   hits.set(ip, recent);
   if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => now - t < WINDOW_MS)) hits.delete(k);
+  return false;
+}
+
+/** Count a model call for this command; true when the per-command cap is already reached. */
+function commandCapped(key) {
+  const now = Date.now();
+  const e = commandCalls.get(key);
+  if (!e || now - e.t > COMMAND_TTL_MS) {
+    commandCalls.set(key, { n: 1, t: now });
+  } else {
+    if (e.n >= MAX_MODEL_CALLS_PER_COMMAND) return true;
+    e.n++;
+  }
+  if (commandCalls.size > 5000) for (const [k, v] of commandCalls) if (now - v.t > COMMAND_TTL_MS) commandCalls.delete(k);
   return false;
 }
 
@@ -45,23 +67,48 @@ export async function POST(req) {
   const command = typeof body?.command === "string" ? body.command.trim().slice(0, 800) : "";
   if (!command) return NextResponse.json({ error: "Say what you want done." }, { status: 400 });
 
-  if (limited(clientIp(req))) {
+  const ip = clientIp(req);
+  if (limited(ip)) {
     return NextResponse.json({ error: "Too many commands. Try again in a minute." }, { status: 429 });
   }
 
   const snapshot = trimSnapshot(body.snapshot);
   const history = cleanHistory(body.history);
+  const observations = cleanObservations(body.observations);
+  const round = Number.isFinite(body.round) ? Math.max(1, Math.min(20, Math.round(body.round))) : 1;
+  const commandId = typeof body.commandId === "string" ? body.commandId.replace(/[^\w-]/g, "").slice(0, 64) : "";
+
+  // Later rounds only exist for the model path; the rules path resolves its
+  // follow-ups on the client. Without a usable model, wrap up from what we have.
+  const wrapUp = (note) => {
+    const summary = summarizeObservations(observations);
+    return NextResponse.json({
+      actions: [],
+      done: true,
+      reply: summary ? `I couldn't plan further. ${summary}` : "I couldn't plan the next step.",
+      source: "rules",
+      note,
+    });
+  };
+  const rulesPlan = (note) => {
+    const plan = planWithRules(command, { snapshot, history, note });
+    return NextResponse.json({ ...plan, actions: sanitizeActions(plan.actions), followup: sanitizeFollowup(plan.followup) ?? undefined });
+  };
 
   if (!hasKey()) {
-    const plan = planWithRules(command, { snapshot, history, note: "The AI model is not configured, so the offline rules planned this." });
-    return NextResponse.json(plan);
+    const note = "The AI model is not configured, so the offline rules planned this.";
+    return round > 1 ? wrapUp(note) : rulesPlan(note);
+  }
+
+  if (commandCapped(`${ip}:${commandId || command.slice(0, 80)}`)) {
+    return NextResponse.json({ error: "That task needed too many AI steps. Try a simpler request." }, { status: 429 });
   }
 
   try {
-    const plan = await planWithModel({ command, snapshot, history });
+    const plan = await planWithModel({ command, snapshot, history, observations, round });
     return NextResponse.json({ ...plan, actions: sanitizeActions(plan.actions) });
   } catch (e) {
-    const plan = planWithRules(command, { snapshot, history, note: `The AI model ${e?.message === "model timed out" ? "timed out" : "was unavailable"}, so the offline rules planned this.` });
-    return NextResponse.json(plan);
+    const note = `The AI model ${e?.message === "model timed out" ? "timed out" : "was unavailable"}, so the offline rules planned this.`;
+    return round > 1 ? wrapUp(note) : rulesPlan(note);
   }
 }

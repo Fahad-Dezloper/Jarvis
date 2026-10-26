@@ -3,11 +3,15 @@
 // action types are dropped, numbers are clamped, strings are capped, and only
 // capabilities declared in capabilities.js can be invoked.
 import { z } from "zod";
-import { CAPABILITIES } from "../capabilities.js";
+import { CAPABILITIES, WINDOW_TO_GROUP } from "../capabilities.js";
 import { WINDOW_CONFIG } from "../../constants/window.js";
 
 export const MAX_ACTIONS = 8;
-export const WINDOW_KEYS = Object.keys(WINDOW_CONFIG);
+/** The planner may return at most this many actions per round. */
+export const MODEL_MAX_ACTIONS = 4;
+// Every window in the desktop config plus every window the capability catalog
+// maps to a group (so newly added apps such as mail are addressable).
+export const WINDOW_KEYS = [...new Set([...Object.keys(WINDOW_CONFIG), ...Object.keys(WINDOW_TO_GROUP)])];
 export const LAYOUTS = ["grid", "columns", "rows", "cascade"];
 export const ACTION_TYPES = [
   "open",
@@ -29,8 +33,10 @@ const TEXT_MAX = 500;
 const LABEL_MAX = 120;
 export const CLIPBOARD_TOKEN = "{{clipboard}}";
 
+// Script-like content is never accepted in any string argument.
+const SCRIPT_LIKE = /<\s*\/?\s*script|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|<\s*iframe|\bon(?:error|load|click)\s*=/i;
 const windowKey = z.string().refine((k) => WINDOW_KEYS.includes(k), "unknown window");
-const text = (max) => z.string().min(0).max(max);
+const text = (max) => z.string().min(0).max(max).refine((v) => !SCRIPT_LIKE.test(v), "script content");
 const num = (min, max) =>
   z
     .number()
@@ -67,6 +73,32 @@ const strict = z.discriminatedUnion("type", [
 ]);
 
 const BAD_SCHEME = /^\s*(javascript|data|vbscript|file|blob|about):/i;
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+// Calculator expressions: digits, operators, brackets and a few words/currency signs.
+const EXPRESSION_WORDS = /\b(?:of|percent|plus|minus|times|divided|by|multiplied|over|x|power|to|the|squared)\b/gi;
+const EXPRESSION_OK = /^[\d\s%+\-*/^().,=×÷$€£₹]+$/u;
+
+/** Max string length per "app.name.arg"; anything not listed gets TEXT_MAX. */
+export const ARG_LIMITS = {
+  "terminal.run_command.command": 500,
+  "terminal.read_project.path": 200,
+  "notes.append_note.text": 2000,
+  "notes.new_note.title": 120,
+  "browser.search.query": 200,
+  "browser.open_result.which": 200,
+  "browser.open_url.url": 500,
+  "browser.copy_link.element": 120,
+  "finder.open.name": 200,
+  "finder.read_file.name": 200,
+  "mail.compose.to": 200,
+  "mail.compose.subject": 200,
+  "mail.compose.body": 3000,
+  "calendar.add_event.title": 200,
+  "calendar.add_event.when": 120,
+  "calculator.compute.expression": 200,
+  "weather.show.city": 80,
+};
 
 /** Validate invoke args against the declared capability params. Returns args or null. */
 export function validateInvokeArgs(app, name, rawArgs) {
@@ -81,7 +113,14 @@ export function validateInvokeArgs(app, name, rawArgs) {
     if (v === undefined || v === null) continue;
     if (spec.type === "string") {
       if (typeof v !== "string" && typeof v !== "number") return null;
-      v = String(v).slice(0, TEXT_MAX);
+      v = String(v).replace(CONTROL_CHARS, "");
+      if (v.length > (ARG_LIMITS[`${app}.${name}.${key}`] ?? TEXT_MAX)) {
+        // enum and url values are never truncated into something else; free text is clipped
+        if (spec.enum || key === "url") return null;
+        v = v.slice(0, ARG_LIMITS[`${app}.${name}.${key}`] ?? TEXT_MAX);
+      }
+      if (SCRIPT_LIKE.test(v)) return null;
+      if (app === "calculator" && key === "expression" && !EXPRESSION_OK.test(v.replace(EXPRESSION_WORDS, ""))) return null;
       if (spec.enum && !spec.enum.includes(v)) return null;
       if (key === "url") {
         if (BAD_SCHEME.test(v)) return null;
@@ -140,7 +179,10 @@ export function sanitizeActions(list) {
  * happens afterwards in sanitizeActions. Invoke args travel as a JSON string.
  */
 export const modelPlanSchema = z.object({
-  reply: z.string().describe("One short friendly sentence describing what you are doing."),
+  reply: z
+    .string()
+    .describe("While working (done=false): one short sentence about what you are doing. When done=true: the final answer to the user, written only from the observations."),
+  done: z.boolean().describe("true when the task is finished and reply is the final answer; false when you need to see the results of these actions first."),
   actions: z
     .array(
       z.object({
@@ -182,7 +224,8 @@ export function planFromModelOutput(output) {
     delete base.args_json;
     return base;
   });
-  const actions = sanitizeActions(mapped);
-  const reply = typeof output?.reply === "string" ? output.reply.trim().slice(0, 300) : "";
-  return { actions, reply: reply || (actions.length ? "On it." : "I can't do that here.") };
+  const actions = sanitizeActions(mapped).slice(0, MODEL_MAX_ACTIONS);
+  const reply = typeof output?.reply === "string" ? output.reply.trim().slice(0, 1200) : "";
+  const done = !(output?.done === false && actions.length > 0);
+  return { actions, done, reply: reply || (actions.length ? "On it." : "I can't do that here.") };
 }
