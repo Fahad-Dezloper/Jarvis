@@ -12,8 +12,8 @@ Goal: show that you only speak, Wispr Flow turns it into text, and Jarvis does r
 
 ## Script
 
-**0:00 - Hook (lock screen).** Let "wispr" write itself.
-> "This is Jarvis. A Mac desktop you control with your voice only. I built it for the No Hands challenge, and every word you'll see me say goes through Wispr Flow."
+**0:00 - Intro (talk to camera; the lock screen writes "wispr").**
+> "Everything you're about to see, I do without touching the keyboard or the mouse. This is Jarvis: a Mac desktop in your browser that you run with your voice. And the voice part is Wispr Flow."
 
 Press Enter.
 
@@ -37,8 +37,8 @@ Shows: the wallpaper cross-fades, a weather widget appears, a screenshot thumbna
 
 Shows: five apps open, each does its job, then the windows snap into a grid. Say "show me the desktop" afterwards if you want the new wallpaper back in frame.
 
-**1:45 - Close.** Open `/docs` for two seconds.
-> "I never touched the keyboard. This is the web demo, version one. Next is the native launcher that does the same on your real Mac, and the protocol for it is documented right here."
+**1:38 - Ending (talk to camera, open `/docs`).**
+> "Wispr Flow did one job here, and it did it perfectly: it got my words to Jarvis. Jarvis does the rest. Wispr is the voice, the web is the hands. Next is a native launcher that does this on your real Mac, and the protocol for it is documented right here. No hands. Just Wispr."
 
 ## If something goes wrong
 - A command stalls: say "stop", or press Esc, then repeat it shorter.
