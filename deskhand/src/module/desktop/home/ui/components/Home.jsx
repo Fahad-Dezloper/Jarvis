@@ -16,12 +16,10 @@ import useWidgetsStore from "@store/widgets";
 const README_DESKTOP_FILE = { ...README_FILE, id: "desktop-readme", windowPosition: "top-[35vh] left-6" };
 const projects = [...(locations.work?.children ?? []), README_DESKTOP_FILE];
 const desktopWallpapers = [
-  { id: "wallpaper", label: "Wallpaper 1", src: "/wallpapers/wallpaper.webp" },
-  { id: "wallpaper2", label: "Wallpaper 2", src: "/wallpapers/wallpaper2.webp" },
-  { id: "wallpaper3", label: "Wallpaper 3", src: "/wallpapers/wallpaper3.webp" },
-  { id: "wallpaper4", label: "Wallpaper 4", src: "/wallpapers/wallpaper4.webp" },
-  { id: "wallpaper5", label: "Wallpaper 5", src: "/wallpapers/wallpaper5.webp" },
-  { id: "wallpaper6", label: "Wallpaper 6", src: "/wallpapers/wallpaper6.webp" },
+  { id: "orry-midnight", label: "Orry Midnight", src: "/wallpapers/orry-midnight.svg" },
+  { id: "orry-dawn", label: "Orry Dawn", src: "/wallpapers/orry-dawn.svg" },
+  { id: "orry-graphite", label: "Orry Graphite", src: "/wallpapers/orry-graphite.svg" },
+  { id: "orry-forest", label: "Orry Forest", src: "/wallpapers/orry-forest.svg" },
 ];
 
 const Home = () => {

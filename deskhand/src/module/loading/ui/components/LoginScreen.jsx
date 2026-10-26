@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { User } from "lucide-react";
+import { Caveat } from "next/font/google";
+
+const script = Caveat({ weight: "700", subsets: ["latin"], display: "swap" });
 
 const AUTO_ENTER_MS = 3500;
+const FADE_MS = 500;
 
 const formatTime = () => {
   const now = new Date();
@@ -12,6 +16,7 @@ const formatDate = () =>
   new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
 const LoginScreen = ({ onLogin }) => {
+  const leavingRef = useRef(false);
   const [time, setTime] = useState(formatTime);
   const [dateStr, setDateStr] = useState(formatDate);
 
@@ -24,40 +29,71 @@ const LoginScreen = ({ onLogin }) => {
   }, []);
 
   // Enter, Space or click goes straight to the desktop; otherwise enter automatically.
+  const [leaving, setLeaving] = useState(false);
+  const enter = useCallback(() => {
+    if (leavingRef.current) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    setTimeout(onLogin, FADE_MS);
+  }, [onLogin]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Enter" || e.key === " ") onLogin();
+      if (e.key === "Enter" || e.key === " ") enter();
     };
     window.addEventListener("keydown", handleKeyDown);
-    const auto = setTimeout(onLogin, AUTO_ENTER_MS);
+    const auto = setTimeout(enter, AUTO_ENTER_MS);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       clearTimeout(auto);
     };
-  }, [onLogin]);
+  }, [enter]);
 
   return (
     <>
       <style>{`
-        @keyframes drawSvgPathHello {
-          0% { stroke-dashoffset: -2000; opacity: 0; }
-          10% { opacity: 1; }
-          90% { stroke-dashoffset: 0; opacity: 1; }
-          100% { stroke-dashoffset: 0; opacity: 1; }
+        @keyframes orryWrite {
+          0% { stroke-dashoffset: 1600; }
+          100% { stroke-dashoffset: 0; }
         }
-        .svg-drawing-path-hello {
-          stroke-dasharray: 2000;
-          stroke-dashoffset: -2000;
-          animation: drawSvgPathHello 2.5s ease-in-out forwards;
+        @keyframes orryWipe {
+          0% { clip-path: inset(-10% 100% -10% 0); }
+          100% { clip-path: inset(-10% -2% -10% 0); }
         }
+        @keyframes orryFill {
+          0% { fill-opacity: 0; }
+          100% { fill-opacity: 1; }
+        }
+        @keyframes orryTagline {
+          0% { opacity: 0; transform: translateY(6px); letter-spacing: 0.3em; }
+          100% { opacity: 1; transform: translateY(0); letter-spacing: 0.22em; }
+        }
+        .orry-word-wrap { animation: orryWipe 2.3s cubic-bezier(0.45, 0.05, 0.4, 1) 0.1s both; }
+        .orry-word {
+          stroke: #f4f2ff;
+          stroke-width: 1.6;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          fill: #f4f2ff;
+          fill-opacity: 0;
+          stroke-dasharray: 1600;
+          stroke-dashoffset: 1600;
+          animation:
+            orryWrite 2.3s ease-in-out 0.1s forwards,
+            orryFill 0.6s ease-out 1.9s forwards;
+        }
+        .orry-tagline { opacity: 0; animation: orryTagline 0.9s ease-out 2.6s forwards; }
       `}</style>
       <div
-        className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/10 backdrop-blur-lg select-none py-12 px-6 cursor-pointer"
-        onClick={onLogin}
+        className={`fixed inset-0 z-50 flex flex-col items-center justify-between select-none py-12 px-6 cursor-pointer transition-opacity duration-500 ease-in-out ${
+          leaving ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ background: "rgba(5, 6, 15, 0.38)", backdropFilter: "blur(10px)" }}
+        onClick={enter}
       >
         <div className="flex flex-col items-center justify-between h-full w-full max-w-lg text-white">
           <div className="flex flex-col items-center mt-6">
-            <p className="text-white/90 text-lg font-medium tracking-wide drop-shadow-md">
+            <p className="text-white/85 text-lg font-medium tracking-wide drop-shadow-md">
               {dateStr}
             </p>
             <h1 className="text-white text-7xl sm:text-8xl font-light tracking-tighter drop-shadow-lg mt-1">
@@ -65,31 +101,38 @@ const LoginScreen = ({ onLogin }) => {
             </h1>
           </div>
 
-          <div className="flex-1 flex items-center justify-center py-10 w-full max-w-xl px-4 overflow-hidden">
-            <svg
-              viewBox="0 0 512 342"
-              className="w-full h-auto drop-shadow-[0_8px_24px_rgba(255,255,255,0.2)]"
-            >
-              <g transform="translate(256, 171)">
-                <path
-                  d="M210.25,1.907C191.75,22.382,184.25,11.881,159.25,2.516C122.234,-11.35,101.515,58.907,144.75,58.907C174.25,58.907,187.75,0.881,149.25,0.881C116.016,0.881,121.25,58.907,88.25,58.907C26.064,58.907,62.25,-63.593,88.25,-63.593C117.75,-63.593,82.75,58.907,31.75,58.907C-19.25,58.907,3.75,-63.593,29.75,-63.593C59.75,-63.593,33.25,58.907,-27.75,58.907C-69.25,58.907,-65.75,1.907,-36.25,1.907C-6.75,1.907,-62.313,81.381,-92.25,61.381C-110.25,49.356,-80.25,1.907,-111.25,1.907C-142.25,1.907,-143.25,51.286,-145.25,66.119C-137.25,-44.119,-125.75,-66.119,-107.75,-66.119C-89.75,-66.119,-94.275,-37.834,-107.75,-19.119C-129.258,10.754,-153.75,32.381,-210.25,47.881"
-                  stroke="white"
-                  strokeWidth="9"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="svg-drawing-path-hello"
-                />
-              </g>
-            </svg>
+          <div className="flex-1 flex flex-col items-center justify-center py-10 w-full max-w-xl px-4 overflow-visible">
+            <div className="orry-word-wrap w-full">
+              <svg
+                viewBox="0 0 640 260"
+                className="w-full h-auto overflow-visible"
+                style={{ filter: "drop-shadow(0 0 14px rgba(139,124,255,0.55)) drop-shadow(0 0 32px rgba(79,216,196,0.25))" }}
+                role="img"
+                aria-label="Wispr"
+              >
+                <text
+                  x="320"
+                  y="195"
+                  textAnchor="middle"
+                  fontSize="250"
+                  className="orry-word"
+                  style={{ fontFamily: script.style.fontFamily }}
+                >
+                  Wispr
+                </text>
+              </svg>
+            </div>
+            <p className="orry-tagline mt-2 text-sm uppercase text-white/70 font-medium">
+              Say what you want.
+            </p>
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-white/15 border border-white/20 shadow-md flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full orry-lock-avatar border border-white/20 flex items-center justify-center">
               <User className="w-5 h-5 text-white/90" />
             </div>
             <p className="text-white text-sm font-semibold drop-shadow-sm">Guest</p>
-            <p className="text-white/80 text-sm font-medium tracking-wide drop-shadow-sm animate-pulse">
+            <p className="orry-lock-hint text-sm font-medium tracking-wide drop-shadow-sm animate-pulse">
               Press Enter or click to continue
             </p>
           </div>
