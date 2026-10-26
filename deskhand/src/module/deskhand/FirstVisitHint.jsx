@@ -34,12 +34,21 @@ export default function FirstVisitHint() {
     if (dismissed) markSeen();
   }, [dismissed]);
 
+  // Shown once: mark as seen as soon as it appears, and fade it after a while.
+  useEffect(() => {
+    if (!ready) return undefined;
+    markSeen();
+    const t = setTimeout(dismiss, 14000);
+    return () => clearTimeout(t);
+  }, [ready, dismiss]);
+
   if (!ready || dismissed) return null;
 
   return (
     <div className="dk-ui dk-hint" role="status">
       <p>
-        Hold <kbd>Fn</kbd>, speak. Try: &ldquo;open Claude Code and run npm run dev&rdquo;
+        Hold <kbd>Fn</kbd>, speak, release. Orry listens, subtitles show what it heard.
+        <span className="dk-hint-sub">No Wispr Flow? Press Cmd+Shift+Space to type instead.</span>
       </p>
       <button type="button" className="dk-icon-btn" onClick={dismiss} aria-label="Dismiss hint">
         <X size={14} />

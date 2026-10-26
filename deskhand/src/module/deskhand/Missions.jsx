@@ -1,25 +1,19 @@
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, ChevronUp, Lightbulb, PartyPopper, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Lightbulb, PartyPopper } from "lucide-react";
 import useWindowsStore from "@store/window";
 import useOrryStore from "./store";
-import { BONUS, MISSIONS, countDone, isComplete, snapshotStore } from "./missionsLogic";
+import {
+  BONUS,
+  CHALLENGES,
+  CORE_MISSIONS,
+  MISSIONS,
+  countDone,
+  isComplete,
+  snapshotStore,
+} from "./missionsLogic";
 
-const DISMISS_KEY = "dk:missions-dismissed";
-
-function readDismissed() {
-  try {
-    return window.localStorage.getItem(DISMISS_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-function writeDismissed(v) {
-  try {
-    window.localStorage.setItem(DISMISS_KEY, v ? "1" : "0");
-  } catch {
-    /* storage unavailable */
-  }
-}
+/** The panel folds itself away this long after the finish state. */
+export const AUTO_COLLAPSE_MS = 6000;
 
 function Item({ item, done, index }) {
   const [hint, setHint] = useState(false);
@@ -44,13 +38,8 @@ function Item({ item, done, index }) {
 export default function Missions() {
   const progress = useOrryStore((s) => s.missions);
   const tick = useOrryStore((s) => s.tickMissions);
-  const [open, setOpen] = useState(true);
-  const [minimized, setMinimized] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [bonusOpen, setBonusOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(!readDismissed());
-  }, []);
 
   // Observe the window store; engine events tick missions inside the deskhand store.
   useEffect(() => {
@@ -63,22 +52,27 @@ export default function Missions() {
   const complete = isComplete(progress);
   const bonusDone = countDone(progress, BONUS);
 
-  const close = () => {
-    setOpen(false);
-    writeDismissed(true);
-  };
-  const reopen = () => {
-    setOpen(true);
-    setMinimized(false);
-    writeDismissed(false);
-  };
+  // Collapse to the pill a few seconds after the finish state.
+  useEffect(() => {
+    if (!complete) return undefined;
+    const t = setTimeout(() => setExpanded(false), AUTO_COLLAPSE_MS);
+    return () => clearTimeout(t);
+  }, [complete]);
 
-  if (!open) {
+  if (!expanded) {
     return (
-      <button type="button" className="dk-ui dk-missions-pill" onClick={reopen}>
-        <Lightbulb size={14} />
+      <button
+        type="button"
+        className={`dk-ui dk-missions-pill ${complete ? "is-complete" : ""}`}
+        onClick={() => setExpanded(true)}
+        aria-label={`Try it: ${done} of ${total} missions done. Open the list.`}
+      >
+        {complete ? <PartyPopper size={14} /> : <Lightbulb size={14} />}
         <span>
-          {done} of {total}
+          Try it:{" "}
+          <b>
+            {done}/{total}
+          </b>
         </span>
       </button>
     );
@@ -95,18 +89,10 @@ export default function Missions() {
           <button
             type="button"
             className="dk-icon-btn"
-            onClick={() => setMinimized((m) => !m)}
-            aria-label={minimized ? "Expand missions" : "Collapse missions"}
+            onClick={() => setExpanded(false)}
+            aria-label="Collapse missions"
           >
-            {minimized ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
-          </button>
-          <button
-            type="button"
-            className="dk-icon-btn"
-            onClick={close}
-            aria-label="Dismiss missions"
-          >
-            <X size={15} />
+            <ChevronUp size={15} />
           </button>
         </div>
       </header>
@@ -120,38 +106,40 @@ export default function Missions() {
         </span>
       </div>
 
-      {!minimized && (
-        <>
-          {complete && (
-            <div className="dk-finish">
-              <p className="dk-finish-title">All five done.</p>
-              <p>What you just did: said it loosely, your desktop did it.</p>
-              <a className="dk-finish-link" href="/docs">
-                See how it works
-              </a>
-            </div>
-          )}
-          <ol className="dk-mission-list">
-            {MISSIONS.map((m) => (
-              <Item key={m.id} item={m} done={!!progress.done[m.id]} index={m.id} />
-            ))}
-          </ol>
+      {complete && (
+        <div className="dk-finish">
+          <p className="dk-finish-title">The five are done.</p>
+          <p>You said it loosely, your desktop did it. Two challenges below if you want more.</p>
+          <a className="dk-finish-link" href="/docs">
+            See how it works
+          </a>
+        </div>
+      )}
+      <ol className="dk-mission-list">
+        {CORE_MISSIONS.map((m) => (
+          <Item key={m.id} item={m} done={!!progress.done[m.id]} index={m.id} />
+        ))}
+      </ol>
+      <p className="dk-mission-divider">Challenge</p>
+      <ol className="dk-mission-list" start={CORE_MISSIONS.length + 1}>
+        {CHALLENGES.map((m) => (
+          <Item key={m.id} item={m} done={!!progress.done[m.id]} index={m.id} />
+        ))}
+      </ol>
 
-          <button type="button" className="dk-bonus-toggle" onClick={() => setBonusOpen((b) => !b)}>
-            <span>Bonus</span>
-            <span className="dk-log-count">
-              {bonusDone}/{BONUS.length}
-            </span>
-            {bonusOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          {bonusOpen && (
-            <ul className="dk-mission-list dk-bonus-list">
-              {BONUS.map((b, i) => (
-                <Item key={b.id} item={b} done={!!progress.done[b.id]} index={i + 1} />
-              ))}
-            </ul>
-          )}
-        </>
+      <button type="button" className="dk-bonus-toggle" onClick={() => setBonusOpen((b) => !b)}>
+        <span>Bonus</span>
+        <span className="dk-log-count">
+          {bonusDone}/{BONUS.length}
+        </span>
+        {bonusOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+      {bonusOpen && (
+        <ul className="dk-mission-list dk-bonus-list">
+          {BONUS.map((b, i) => (
+            <Item key={b.id} item={b} done={!!progress.done[b.id]} index={i + 1} />
+          ))}
+        </ul>
       )}
     </aside>
   );

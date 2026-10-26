@@ -6,7 +6,25 @@ export const MISSIONS = [
   { id: 3, label: "Close it", hint: "close it" },
   { id: 4, label: "Open Spotify (music)", hint: "open Spotify" },
   { id: 5, label: "Play the HiNV Music playlist", hint: "play the HiNV Music playlist" },
+  {
+    id: 6,
+    challenge: true,
+    label:
+      "Open Claude Code, open the project folder, read everything and tell me what it is about",
+    hint: "open Claude Code, open the project folder, read everything and tell me what it is about",
+  },
+  {
+    id: 7,
+    challenge: true,
+    label: "Open Chrome, search for Paradigm research papers and open the latest one",
+    hint: "open Chrome, search for Paradigm research papers and open the latest one",
+  },
 ];
+
+/** The first five missions decide the finish state; the rest are challenges. */
+export const CORE_COUNT = 5;
+export const CORE_MISSIONS = MISSIONS.slice(0, CORE_COUNT);
+export const CHALLENGES = MISSIONS.slice(CORE_COUNT);
 
 export const BONUS = [
   {
@@ -30,8 +48,18 @@ export function countDone(progress, list = MISSIONS) {
   return list.filter((m) => progress.done[m.id]).length;
 }
 
+/** True when the five core missions are done (the finish state). */
 export function isComplete(progress) {
+  return countDone(progress, CORE_MISSIONS) === CORE_MISSIONS.length;
+}
+
+/** True when every mission including the challenges is done. */
+export function isAllComplete(progress) {
   return countDone(progress, MISSIONS) === MISSIONS.length;
+}
+
+export function progressLabel(progress) {
+  return `${countDone(progress)} of ${MISSIONS.length}`;
 }
 
 const HINV = /hi\s*-?\s*nv/i;
@@ -145,5 +173,87 @@ export function tickMissions(progress, input = {}) {
     if (next.flags.linkCopied && next.flags.noteAdded) changed = mark(next, "b1") || changed;
   }
 
+  if (event) changed = tickChallenges(next, event) || changed;
+
   return changed ? next : progress;
+}
+
+const SEARCH_URL = /(^|[/.])(google|bing|duckduckgo)\.[a-z.]+\/search|[?&]q=|\/search\b/i;
+const READ_WORDS = /\b(cat|ls|tree|head|read|find|grep|less|list)\b/i;
+
+/**
+ * Challenge steps 6 and 7. Uses flags that persist across commands, so the missions
+ * can be completed in one sentence or over several. Ignores event types it does not know.
+ */
+function tickChallenges(next, event) {
+  let changed = false;
+  const flag = (key) => {
+    if (!next.flags[key]) changed = setFlag(next, key, true) || changed;
+  };
+
+  if (event.type === "observation") flag("readSomething");
+
+  if (event.type === "step" && event.status === "ok" && event.action) {
+    const a = event.action;
+    const args = (a.args && typeof a.args === "object" ? a.args : {}) || {};
+    const url = String(args.url || "");
+    const text = String(a.text || args.text || args.query || args.command || "");
+
+    // 6: Claude Code (terminal) + project folder + reading
+    if ((a.type === "open" && a.window === "terminal") || a.app === "terminal") flag("ccOpened");
+    if (
+      (a.type === "open" && a.window === "finder") ||
+      (a.type === "invoke" && a.app === "finder") ||
+      (a.type === "click" && a.window === "finder") ||
+      (a.app === "terminal" && /\bcd\b/i.test(text))
+    ) {
+      flag("folderOpened");
+    }
+    if (
+      (a.app === "terminal" && READ_WORDS.test(text)) ||
+      (a.type === "invoke" && /read|list|summar/i.test(String(a.name || "")))
+    ) {
+      flag("readSomething");
+    }
+
+    // 7: Chrome/browser + Paradigm search + opening a result
+    if (
+      (a.type === "open" && (a.window === "chrome" || a.window === "safari")) ||
+      a.app === "browser"
+    ) {
+      flag("browserOpened");
+    }
+    const isParadigm = /paradigm/i.test(url) || /paradigm/i.test(text);
+    if (isParadigm && (SEARCH_URL.test(url) || a.type === "type" || a.app === "browser")) {
+      if (!next.flags.paradigmSearched) {
+        flag("paradigmSearched");
+        flag("searchStepSeen");
+        return changed; // the search itself is not "opening the paper"
+      }
+    }
+    if (next.flags.paradigmSearched) {
+      const opensResult =
+        a.type === "click" ||
+        (a.type === "invoke" &&
+          a.app === "browser" &&
+          a.name === "open_url" &&
+          url &&
+          !SEARCH_URL.test(url));
+      if (opensResult) flag("paperOpened");
+    }
+  }
+
+  if (event.type === "done" && event.ok !== false) {
+    if (
+      next.flags.ccOpened &&
+      next.flags.folderOpened &&
+      (next.flags.readSomething || String(event.reply || "").length > 40)
+    ) {
+      changed = mark(next, 6) || changed;
+    }
+    if (next.flags.browserOpened && next.flags.paradigmSearched && next.flags.paperOpened) {
+      changed = mark(next, 7) || changed;
+    }
+  }
+  return changed;
 }

@@ -40,13 +40,18 @@ const useOrryStore = create((set, get) => ({
   error: "",
   cancelled: false,
   history: [],
-  collapsed: false,
-  logOpen: true,
+  live: "", // transcript text arriving in the capture field, before commit
+  captureFocused: false,
+  resultSeq: 0, // bumps whenever a command finishes, so the subtitle can show the result
+  logPinned: false,
+  typeOpen: false,
   hintDismissed: false,
   missions: initialProgress(),
 
-  setCollapsed: (collapsed) => set({ collapsed }),
-  setLogOpen: (logOpen) => set({ logOpen }),
+  setLive: (live) => set({ live }),
+  setCaptureFocused: (captureFocused) => set({ captureFocused }),
+  setLogPinned: (logPinned) => set({ logPinned }),
+  setTypeOpen: (typeOpen) => set({ typeOpen }),
   dismissHint: () => set({ hintDismissed: true }),
 
   tickMissions: (input) =>
@@ -102,8 +107,7 @@ const useOrryStore = create((set, get) => ({
       ok: true,
       error: "",
       cancelled: false,
-      collapsed: false,
-      logOpen: true,
+      live: "",
       hintDismissed: true,
     });
 
@@ -115,7 +119,13 @@ const useOrryStore = create((set, get) => ({
         onEvent: (e) => get().applyEvent(e),
       });
       if (signal.aborted) {
-        set({ status: "idle", cancelled: true, reply: "Stopped.", ok: false });
+        set((state) => ({
+          status: "idle",
+          cancelled: true,
+          reply: "Stopped.",
+          ok: false,
+          resultSeq: state.resultSeq + 1,
+        }));
         return null;
       }
       const reply = (result && result.reply) || get().reply || "Done.";
@@ -124,20 +134,22 @@ const useOrryStore = create((set, get) => ({
         reply,
         source: (result && result.source) || state.source,
         ok: result ? result.ok !== false : true,
+        resultSeq: state.resultSeq + 1,
         history: trimHistory(state.history, { command: text, reply }),
       }));
       return result;
     } catch (err) {
       const aborted = signal.aborted || (err && err.name === "AbortError");
-      set(
-        aborted
+      set((state) => ({
+        ...(aborted
           ? { status: "idle", cancelled: true, reply: "Stopped.", ok: false }
           : {
               status: "idle",
               ok: false,
               error: (err && err.message) || "Something went wrong running that command.",
-            },
-      );
+            }),
+        resultSeq: state.resultSeq + 1,
+      }));
       return null;
     } finally {
       controller = null;
