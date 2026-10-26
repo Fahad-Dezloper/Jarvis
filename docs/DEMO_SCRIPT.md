@@ -4,7 +4,7 @@ Goal: show that you only speak, Wispr Flow turns it into text, and Jarvis does r
 
 ## Before you record
 - Use a production build for fast, reliable dictation: in `deskhand`, `npm run build` then `npm start` (port 3000). Dev mode is slower and can make Wispr's paste arrive empty.
-- Put your keys in `.env.local` first (Gemini or Anthropic for the AI; Brave or Google for web search).
+- Put your keys in `.env.local` first (Gemini or Anthropic for the AI; Serper for real Google search).
 - Wispr Flow: push-to-talk (hold Fn), not hands-free. Pick a quiet room.
 - Run each command once before recording so everything is warm, then reload and start clean.
 - Screen recording: Cmd+Shift+5, record the browser window plus microphone. Full screen (F11) looks best.
