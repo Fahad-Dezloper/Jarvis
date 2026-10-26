@@ -221,7 +221,7 @@ function planComplex(cleaned, ctx) {
   }
 
   // --- arithmetic ---
-  const expr = arithmeticExpression(t);
+  const expr = (arithmeticExpression(t) || "").replace(/[\s,.;:!?]+$/g, "");
   if (expr) {
     return out([...openIf("calculator"), { type: "invoke", app: "calculator", name: "compute", args: { expression: expr } }], `Calculating ${expr}.`, { kind: "answer" });
   }

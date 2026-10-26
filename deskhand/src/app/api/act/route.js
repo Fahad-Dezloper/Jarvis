@@ -108,7 +108,9 @@ export async function POST(req) {
     const plan = await planWithModel({ command, snapshot, history, observations, round });
     return NextResponse.json({ ...plan, actions: sanitizeActions(plan.actions) });
   } catch (e) {
-    const note = `The AI model ${e?.message === "model timed out" ? "timed out" : "was unavailable"}, so the offline rules planned this.`;
+    const why =
+      e?.message === "model timed out" ? "timed out" : e?.message === "model quota" ? "hit its rate limit (quota)" : "was unavailable";
+    const note = `The AI model ${why}, so the offline rules planned this.`;
     return round > 1 ? wrapUp(note) : rulesPlan(note);
   }
 }

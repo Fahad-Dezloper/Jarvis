@@ -10,6 +10,8 @@ import { MODEL_MAX_ACTIONS, WINDOW_KEYS, modelPlanSchema, planFromModelOutput } 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 export const DEFAULT_GOOGLE_MODEL = "gemini-3.6-flash";
 export const MODEL_TIMEOUT_MS = 40_000;
+export const FALLBACK_TIMEOUT_MS = 20_000;
+export const GOOGLE_FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite-preview"];
 
 const googleKey = () => process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
 
@@ -117,47 +119,66 @@ export async function planWithModel(req, deps = {}) {
   const generate = deps.generate ?? generateText;
   const resolved = resolveProvider();
   if (!resolved && !deps.generate) throw new Error("no key");
-  const defaultId = resolved?.provider === "google" ? DEFAULT_GOOGLE_MODEL : DEFAULT_MODEL;
+  const isGoogle = resolved?.provider === "google";
+  const defaultId = isGoogle ? DEFAULT_GOOGLE_MODEL : DEFAULT_MODEL;
   const modelId = process.env.DESKHAND_MODEL || defaultId;
-  let model = modelId;
-  if (!deps.generate) {
-    model =
-      resolved.provider === "google"
-        ? createGoogleGenerativeAI({ apiKey: resolved.apiKey })(modelId)
-        : createAnthropic({ apiKey: resolved.apiKey })(modelId);
-  }
+  // Each Gemini model has its own quota and load, so a 429/503 on one can be answered by the next.
+  const candidates = isGoogle && !deps.generate ? [modelId, ...GOOGLE_FALLBACK_MODELS.filter((m) => m !== modelId)] : [modelId];
   const system = buildSystemPrompt();
   const prompt = buildPrompt(req);
 
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const result = await generate({
-        model,
-        system,
-        prompt,
-        output: Output.object({ schema: modelPlanSchema, name: "desktop_plan" }),
-        ...(resolved?.provider === "google" ? { providerOptions: googleOptions() } : {}),
-        abortSignal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
-        maxRetries: 0,
-      });
-      const plan = planFromModelOutput(result.output);
-      return { ...plan, source: "model" };
-    } catch (e) {
-      lastError = e;
+  let lastId = modelId;
+  for (let c = 0; c < candidates.length; c++) {
+    const id = candidates[c];
+    lastId = id;
+    let model = id;
+    if (!deps.generate) {
+      model = isGoogle ? createGoogleGenerativeAI({ apiKey: resolved.apiKey })(id) : createAnthropic({ apiKey: resolved.apiKey })(id);
+    }
+    // Non-Gemini (and injected test) planners keep the original retry-once behaviour.
+    const attempts = candidates.length === 1 ? 2 : 1;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const result = await generate({
+          model,
+          system,
+          prompt,
+          output: Output.object({ schema: modelPlanSchema, name: "desktop_plan" }),
+          ...(isGoogle ? { providerOptions: googleOptions() } : {}),
+          abortSignal: AbortSignal.timeout(c === 0 ? MODEL_TIMEOUT_MS : FALLBACK_TIMEOUT_MS),
+          maxRetries: 0,
+        });
+        const plan = planFromModelOutput(result.output);
+        if (c > 0) console.warn(`[model] answered by fallback ${id} after ${candidates[c - 1]} failed`);
+        return { ...plan, source: "model" };
+      } catch (e) {
+        lastError = e;
+        logModelError(resolved, id, e);
+      }
     }
   }
-  // Log a redacted summary on the server only (never sent to the client).
+  // Never include the message verbatim in the thrown error: provider errors can echo request details.
+  const status = lastError?.statusCode;
+  const kind =
+    lastError?.name === "TimeoutError" || lastError?.name === "AbortError"
+      ? "timed out"
+      : status === 429
+        ? "quota"
+        : "failed";
+  void lastId;
+  throw new Error(`model ${kind}`);
+}
+
+/** Log a redacted summary on the server only (never sent to the client). */
+function logModelError(resolved, id, err) {
   try {
     const secret = resolved?.apiKey;
-    let msg = String(lastError?.message ?? lastError ?? "").slice(0, 400);
+    let msg = String(err?.message ?? err ?? "").slice(0, 300);
     if (secret) msg = msg.split(secret).join("[redacted]");
     msg = msg.replace(/(key=)[^&\s"']+/gi, "$1[redacted]").replace(/sk-ant-[\w-]+/g, "[redacted]").replace(/AIza[\w-]{20,}/g, "[redacted]");
-    console.error(`[model] ${resolved?.provider ?? "?"} ${modelId} failed: ${lastError?.name ?? "Error"} ${lastError?.statusCode ?? ""} ${msg}`);
+    console.error(`[model] ${resolved?.provider ?? "?"} ${id} failed: ${err?.name ?? "Error"} ${err?.statusCode ?? ""} ${msg}`);
   } catch {
     // logging must never break planning
   }
-  // Never include the message verbatim in the thrown error: provider errors can echo request details.
-  const kind = lastError?.name === "TimeoutError" || lastError?.name === "AbortError" ? "timed out" : "failed";
-  throw new Error(`model ${kind}`);
 }
