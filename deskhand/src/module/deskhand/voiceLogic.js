@@ -12,8 +12,46 @@ export function cleanCommand(raw) {
     .trim();
 }
 
-export function isCommittable(raw) {
-  return cleanCommand(raw).replace(/\s/g, "").length >= MIN_CHARS;
+/** One-word commands that are real on their own. Any other single word is treated as noise. */
+const SINGLE_WORD_COMMANDS = new Set(["pause", "play", "resume", "next", "previous", "skip", "stop", "mute", "unmute", "undo", "tile"]);
+
+/** What a speech model tends to emit for background noise or a stray sound. */
+const NOISE_PHRASES = new Set([
+  "thank you",
+  "thanks",
+  "thanks for watching",
+  "you",
+  "okay",
+  "ok",
+  "yeah",
+  "yes",
+  "no",
+  "hmm",
+  "um",
+  "uh",
+  "bye",
+  "hello",
+  "hi",
+  "so",
+  "right",
+]);
+
+const bare = (t) => t.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+
+/**
+ * @param {string} raw
+ * @param {{strict?: boolean}} [opts] strict (dictation, not Enter): reject stray one-word noise.
+ */
+export function isCommittable(raw, opts = {}) {
+  const text = cleanCommand(raw);
+  if (text.replace(/\s/g, "").length < MIN_CHARS) return false;
+  if (!opts.strict) return true;
+  const b = bare(text);
+  if (!b) return false;
+  if (NOISE_PHRASES.has(b)) return false;
+  const words = b.split(" ");
+  if (words.length === 1 && !SINGLE_WORD_COMMANDS.has(words[0])) return false;
+  return true;
 }
 
 /**
@@ -37,7 +75,7 @@ export function decideCommit({
   const elapsed = changedAt == null ? quietMs : now - changedAt;
   const quiet = enter || elapsed >= quietMs;
   if (!quiet) return { action: "wait", text, waitMs: quietMs - elapsed };
-  if (!isCommittable(value)) return { action: "discard", text: "", waitMs: 0 };
+  if (!isCommittable(value, { strict: !enter })) return { action: "discard", text: "", waitMs: 0 };
   if (busy) return { action: "hold", text, waitMs: 0 };
   return { action: "commit", text, waitMs: 0 };
 }

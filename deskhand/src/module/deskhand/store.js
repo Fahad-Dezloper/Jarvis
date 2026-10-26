@@ -50,6 +50,9 @@ const useJarvisStore = create((set, get) => ({
 
   setLive: (live) => set({ live }),
   setCaptureFocused: (captureFocused) => set({ captureFocused }),
+  // Only true while the Fn key is seen held. Most Mac browsers never report Fn, so this stays false there.
+  fnHeld: false,
+  setFnHeld: (fnHeld) => set({ fnHeld }),
   setLogPinned: (logPinned) => set({ logPinned }),
   setTypeOpen: (typeOpen) => set({ typeOpen }),
   dismissHint: () => set({ hintDismissed: true }),

@@ -154,6 +154,23 @@ export default function VoiceCapture() {
     };
   }, [focusCapture]);
 
+  // Show "listening" only while Fn is held, where the browser reports it at all (most Mac browsers do not).
+  useEffect(() => {
+    const isFn = (e) => e.key === "Fn" || e.code === "Fn" || (typeof e.getModifierState === "function" && e.getModifierState("Fn"));
+    const down = (e) => {
+      if (isFn(e)) useJarvisStore.getState().setFnHeld(true);
+    };
+    const up = (e) => {
+      if (e.key === "Fn" || e.code === "Fn" || !isFn(e)) useJarvisStore.getState().setFnHeld(false);
+    };
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
+    return () => {
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
+    };
+  }, []);
+
   // Cmd/Ctrl+K forces capture from anywhere.
   useEffect(() => {
     const onKey = (e) => {

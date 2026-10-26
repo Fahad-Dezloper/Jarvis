@@ -13,7 +13,7 @@ export default function Subtitle() {
   const ok = useJarvisStore((s) => s.ok);
   const source = useJarvisStore((s) => s.source);
   const resultSeq = useJarvisStore((s) => s.resultSeq);
-  const captureFocused = useJarvisStore((s) => s.captureFocused);
+  const fnHeld = useJarvisStore((s) => s.fnHeld);
   const cancel = useJarvisStore((s) => s.cancel);
 
   const [showResult, setShowResult] = useState(false);
@@ -44,7 +44,8 @@ export default function Subtitle() {
     ok,
     source,
     showResult,
-    listening: ready && captureFocused,
+    // Quiet when idle: the mic glyph appears only while Fn is seen held (where the browser reports it).
+    listening: ready && fnHeld,
   });
 
   const heldKey = `${view.kind}|${view.text}|${view.badge?.text ?? ""}`;

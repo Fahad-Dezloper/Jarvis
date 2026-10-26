@@ -305,6 +305,11 @@ check("cleanCommand trims and strips newlines", () => {
   assert.equal(cleanCommand("open\r\nnotes\n\n"), "open notes");
   assert.equal(cleanCommand(null), "");
 });
+check("strict commit rejects stray one-word noise but keeps real commands", () => {
+  for (const noise of ["you", "Thank you.", "okay", "um", "Hello", "yes"]) assert.equal(isCommittable(noise, { strict: true }), false, noise);
+  for (const ok of ["pause", "next", "open notes", "close it", "play music"]) assert.equal(isCommittable(ok, { strict: true }), true, ok);
+  assert.equal(isCommittable("okay", { strict: false }), true); // typed + Enter is always allowed
+});
 check("isCommittable needs at least 2 non-space characters", () => {
   assert.equal(isCommittable("   \n "), false);
   assert.equal(isCommittable(" a "), false);
