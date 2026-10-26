@@ -86,7 +86,18 @@ export async function runCommand(text, opts = {}) {
   } catch {
     /* clipboard tap is best effort */
   }
-  return runLoop(text, opts, {
+  const userOnEvent = opts.onEvent;
+  const onEvent = (e) => {
+    try {
+      if (e.type === "plan") console.info(`[jarvis] plan round ${e.round ?? "?"}: ${e.actions.length} actions, done=${e.done}, source=${e.source}`);
+      else if (e.type === "step" && e.status === "fail") console.warn(`[jarvis] step ${e.index} FAILED: ${JSON.stringify(e.action)} -> ${e.message}`);
+      else if (e.type === "done") console.info(`[jarvis] done ok=${e.ok}: ${String(e.reply).slice(0, 160)}`);
+    } catch {
+      /* logging only */
+    }
+    userOnEvent?.(e);
+  };
+  return runLoop(text, { ...opts, onEvent }, {
     snapshot: () => buildSnapshot(),
     plan: makePlanner(opts.signal),
     execute: executeAction,

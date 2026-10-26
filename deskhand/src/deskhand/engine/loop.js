@@ -13,8 +13,9 @@
 //   {type:"observation", index, text}            text is truncated for the UI
 //   {type:"done", reply, ok}                     reply is the FINAL answer
 
-export const MAX_ROUNDS = 6;
-export const BUDGET_MS = 45_000;
+export const MAX_ROUNDS = 8;
+export const VERIFY_MIN_ACTIONS = 4;
+export const BUDGET_MS = 90_000;
 export const UI_OBS_CHARS = 600;
 export const PLANNER_OBS_CHARS = 4000;
 const MIN_ROUND_MS = 2500;
@@ -122,6 +123,11 @@ export async function runLoop(text, opts, deps) {
   let pendingFollowup = null;
   let lastSig = "";
   let failedRounds = 0;
+  // Completeness check: a model can stop early on a long, multi-part request and still say "done".
+  // After a big model plan has run, give it one chance to compare the original request with what was executed.
+  const executedLog = [];
+  let verified = false;
+  let verifyObs = null;
 
   for (;;) {
     if (signal?.aborted) return cancelled();
@@ -143,7 +149,7 @@ export async function runLoop(text, opts, deps) {
         /* planning continues without a snapshot */
       }
       try {
-        planRes = await deps.plan({ command, snapshot, history, observations: observations.map(toPlannerObservation), round, deadline });
+        planRes = await deps.plan({ command, snapshot, history, observations: observations.map(toPlannerObservation).concat(verifyObs ? [verifyObs] : []), round, deadline });
       } catch (e) {
         if (signal?.aborted) return cancelled();
         const why = e?.message ? ` (${truncate(e.message, 120)})` : "";
@@ -176,6 +182,7 @@ export async function runLoop(text, opts, deps) {
       emit({ type: "step", index, action, status: "start", round, rect: deps.rect?.(action) });
       const res = await deps.execute(action);
       executed++;
+      executedLog.push(`${res.ok ? "" : "(failed) "}${describeAction(action)}`);
       emit({ type: "step", index, action, status: res.ok ? "ok" : "fail", message: res.message, round, rect: deps.rect?.(action) });
       const hasText = action.type === "invoke" || !res.ok;
       if (hasText) {
@@ -203,6 +210,21 @@ export async function runLoop(text, opts, deps) {
     if (hasFollowup) {
       pendingFollowup = planRes.followup;
       await sleep(stepDelay, signal);
+      continue;
+    }
+
+    if (done && planSource === "model" && !verified && executed >= VERIFY_MIN_ACTIONS && round < maxRounds && deadline - now() > MIN_ROUND_MS) {
+      verified = true;
+      verifyObs = {
+        index: 9999,
+        action: "verification",
+        ok: true,
+        text: truncate(
+          `VERIFICATION ROUND. Everything below has already been executed, in order: ${executedLog.join("; ")}. Compare it with the ORIGINAL REQUEST, part by part. If any part of the request has not been done yet, return actions for ONLY the remaining parts. If every part is done, return no actions, done=true and a one-sentence reply.`,
+          PLANNER_OBS_CHARS,
+        ),
+      };
+      await sleep(Math.min(stepDelay, 300), signal);
       continue;
     }
 

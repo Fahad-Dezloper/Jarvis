@@ -6,9 +6,9 @@ import { z } from "zod";
 import { CAPABILITIES, WINDOW_TO_GROUP } from "../capabilities.js";
 import { WINDOW_CONFIG } from "../../constants/window.js";
 
-export const MAX_ACTIONS = 8;
+export const MAX_ACTIONS = 24;
 /** The planner may return at most this many actions per round. */
-export const MODEL_MAX_ACTIONS = 4;
+export const MODEL_MAX_ACTIONS = 24;
 // Every window in the desktop config plus every window the capability catalog
 // maps to a group (so newly added apps such as mail are addressable).
 export const WINDOW_KEYS = [...new Set([...Object.keys(WINDOW_CONFIG), ...Object.keys(WINDOW_TO_GROUP)])];

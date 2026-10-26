@@ -214,7 +214,7 @@ check("blocks dangerous urls and settings keys", () => {
   assert.equal(sanitizeAction({ type: "invoke", app: "settings", name: "set_setting", args: { key: "firewall", value: false } }), null);
 });
 check("caps action count and drops bad ones", () => {
-  const many = Array.from({ length: 20 }, () => ({ type: "focus", window: "notes" }));
+  const many = Array.from({ length: MAX_ACTIONS + 6 }, () => ({ type: "focus", window: "notes" }));
   assert.equal(sanitizeActions([{ type: "bogus" }, ...many]).length, MAX_ACTIONS);
   assert.deepEqual(sanitizeActions("nope"), []);
 });
@@ -328,8 +328,8 @@ check("new capability args reject script content and overlong text", () => {
   assert.equal(inv1("mail", "compose", { to: "a\u0000b" }).args.to, "ab");
 });
 check("mail is an addressable window", () => assert.deepEqual(sanitizeAction({ type: "open", window: "mail" }), { type: "open", window: "mail" }));
-check("model output: done flag and 4-action cap", () => {
-  const acts = Array.from({ length: 7 }, () => ({ type: "focus", window: "notes" }));
+check("model output: done flag and action cap", () => {
+  const acts = Array.from({ length: MODEL_MAX_ACTIONS + 3 }, () => ({ type: "focus", window: "notes" }));
   const p = planFromModelOutput({ reply: "x", done: false, actions: acts });
   assert.equal(p.actions.length, MODEL_MAX_ACTIONS);
   assert.equal(p.done, false);
@@ -338,6 +338,44 @@ check("model output: done flag and 4-action cap", () => {
   assert.equal(planFromModelOutput({ reply: "r", done: false, actions: [{ type: "hack" }] }).done, true);
   assert.equal(planFromModelOutput({ reply: "r", actions: [{ type: "open", window: "notes" }] }).done, true);
 });
+
+// ---------- loop: completeness verification ----------
+await (async () => {
+  const { runLoop } = await import("../src/deskhand/engine/loop.js");
+  const seen = [];
+  const mk = (n, w) => Array.from({ length: n }, (_, i) => ({ type: "open", window: w[i % w.length] }));
+  let calls = 0;
+  const deps = {
+    snapshot: () => ({}),
+    plan: async (req) => {
+      calls++;
+      seen.push(req.observations.map((o) => o.action));
+      if (calls === 1) return { actions: mk(4, ["notes", "music", "chrome", "terminal"]), reply: "ok", done: true, source: "model" };
+      return { actions: [{ type: "open", window: "calendar" }], reply: "calendar too", done: true, source: "model" };
+    },
+    execute: async () => ({ ok: true, message: "ok" }),
+    sleep: async () => {},
+    stepDelayMs: 0,
+  };
+  const res = await runLoop("a long request", {}, deps);
+  check("loop: a done plan with 4+ actions gets one verification round", () => {
+    assert.equal(calls, 2);
+    assert.ok(seen[1].includes("verification"));
+    assert.equal(res.ok, true);
+  });
+  let calls2 = 0;
+  const short = await runLoop("short", {}, {
+    ...deps,
+    plan: async () => {
+      calls2++;
+      return { actions: mk(2, ["notes", "music"]), reply: "ok", done: true, source: "model" };
+    },
+  });
+  check("loop: short plans are not re-verified", () => {
+    assert.equal(calls2, 1);
+    assert.equal(short.ok, true);
+  });
+})();
 
 // ---------- rules: flagship and new-app asks ----------
 const invokes = (p) => p.actions.filter((a) => a.type === "invoke");

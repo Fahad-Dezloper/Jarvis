@@ -9,7 +9,7 @@ import { MODEL_MAX_ACTIONS, WINDOW_KEYS, modelPlanSchema, planFromModelOutput } 
 
 export const DEFAULT_MODEL = "claude-sonnet-5-5";
 export const DEFAULT_GOOGLE_MODEL = "gemini-3.6-flash";
-export const MODEL_TIMEOUT_MS = 20_000;
+export const MODEL_TIMEOUT_MS = 40_000;
 
 const googleKey = () => process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
 
@@ -30,6 +30,16 @@ export function resolveProvider() {
 }
 
 export const hasKey = () => resolveProvider() !== null;
+
+/**
+ * Gemini 3 models "think" before answering, which made a four-app plan take over
+ * 20 seconds. Planning a desktop action list needs little reasoning, so default
+ * to low; DESKHAND_THINKING=minimal|low|medium|high overrides it.
+ */
+function googleOptions() {
+  const level = (process.env.DESKHAND_THINKING || "low").toLowerCase();
+  return { google: { thinkingConfig: { thinkingLevel: level } } };
+}
 
 function capabilityDoc() {
   return Object.entries(CAPABILITIES)
@@ -52,7 +62,7 @@ You work in ROUNDS. Each round you see the current desktop state and the observa
 - done: false if you must see the results of these actions before deciding what comes next, true when the task is finished;
 - reply: while working, one short sentence about what you are doing. When done is true, the FINAL answer to the user.
 
-Plan incrementally and prefer the shortest correct sequence. Actions whose result you do not need can share a batch (open the app, then invoke it). When the task needs information, call a reading capability first, set done=false, and answer in the next round: reading a project = terminal.read_project; web = browser.search, then browser.open_result, then browser.read_page; a file = finder.read_file; schedule = calendar.list_events; weather = weather.show; arithmetic = calculator.compute. The final reply must answer the question in plain natural language, written ONLY from the observations. Never invent facts that are not in the observations; if they do not contain the answer, say so plainly. If an observation says FAILED, adapt once (another approach) or explain what went wrong.
+Plan incrementally and prefer the shortest correct sequence. PUT EVERY INDEPENDENT ACTION OF THE REQUEST IN THE SAME BATCH: if the user asks for several apps and several things to do in them (for example open chrome and search, open notes and write something, open music and play a playlist, open the terminal and run a command), return all of those open and invoke actions together, in the order spoken, in ONE round with done=true when none of them needs a result back. Use another round only when a later step depends on information from an earlier one. When the task needs information, call a reading capability first, set done=false, and answer in the next round: reading a project = terminal.read_project; web = browser.search, then browser.open_result, then browser.read_page; a file = finder.read_file; schedule = calendar.list_events; weather = weather.show; arithmetic = calculator.compute. The final reply must answer the question in plain natural language, written ONLY from the observations. Never invent facts that are not in the observations; if they do not contain the answer, say so plainly. If an observation says FAILED, adapt once (another approach) or explain what went wrong.
 
 Action types (set only the fields each type needs):
 - open|close|minimize|maximize|restore|focus: {window}
@@ -71,6 +81,8 @@ ${capabilityDoc()}
 For notes.append_note you may pass text "{{clipboard}}" to insert whatever was last copied (for example right after browser.copy_link).
 
 Rules:
+- If an observation named "verification" appears, this is a completeness check: compare the original request with the list of what was already executed and plan ONLY the parts that are still missing; if nothing is missing return no actions and done=true.
+- Cover EVERY part of the request. Count the separate things the user asked for before you answer and make sure each has its actions; never stop after the first few.
 - Open the app first when its window is not open in the desktop state (a capability only works while its window is open). Windows listed as minimized should be opened/restored.
 - For "open Claude Code and read the project": open terminal, terminal.run_command with a short request, terminal.read_project, done=false; then answer from the observation.
 - "this", "it" and "that" mean the front-most window (highest z, not minimized) or the app last mentioned in the history.
@@ -125,6 +137,7 @@ export async function planWithModel(req, deps = {}) {
         system,
         prompt,
         output: Output.object({ schema: modelPlanSchema, name: "desktop_plan" }),
+        ...(resolved?.provider === "google" ? { providerOptions: googleOptions() } : {}),
         abortSignal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
         maxRetries: 0,
       });
@@ -139,7 +152,7 @@ export async function planWithModel(req, deps = {}) {
     const secret = resolved?.apiKey;
     let msg = String(lastError?.message ?? lastError ?? "").slice(0, 400);
     if (secret) msg = msg.split(secret).join("[redacted]");
-    msg = msg.replace(/(key=)[^&\s"']+/gi, "$1[redacted]");
+    msg = msg.replace(/(key=)[^&\s"']+/gi, "$1[redacted]").replace(/sk-ant-[\w-]+/g, "[redacted]").replace(/AIza[\w-]{20,}/g, "[redacted]");
     console.error(`[model] ${resolved?.provider ?? "?"} ${modelId} failed: ${lastError?.name ?? "Error"} ${lastError?.statusCode ?? ""} ${msg}`);
   } catch {
     // logging must never break planning
