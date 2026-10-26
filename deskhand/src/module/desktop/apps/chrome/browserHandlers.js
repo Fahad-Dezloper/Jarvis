@@ -201,7 +201,7 @@ const handlers = {
         .slice(0, MAX_TEXT);
 
     // Real web page: show it through the reader and hand back its text.
-    if (r.kind === "web" && !r.demo && isHttpUrl(r.url)) {
+    if (!r.demo && isHttpUrl(r.url) && (r.kind === "web" || (r.kind === "research" && !r.abstract))) {
       const pending = loadPage(r.url);
       ctl.navigate(pageUrl(r.url));
       const entry = await Promise.race([pending, sleep(PAGE_WAIT_MS).then(() => null)]);

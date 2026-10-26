@@ -45,7 +45,7 @@ const Badge = ({ r }) => {
 };
 
 /** Where a result opens: real web pages through the reader, curated entries as an abstract page. */
-const resultTarget = (r) => (r.kind === "web" && !r.demo ? pageUrl(r.url) : articleUrl(r.id));
+const resultTarget = (r) => (!r.demo && (r.kind === "web" || (r.kind === "research" && !r.abstract)) ? pageUrl(r.url) : articleUrl(r.id));
 
 const SOURCES = [
   ["web", "Web"],
