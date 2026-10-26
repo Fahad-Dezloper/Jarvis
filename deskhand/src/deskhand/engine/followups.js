@@ -49,7 +49,8 @@ export function summarizeProject(data) {
 
   const label = title || name;
   const what = para || desc;
-  if (label && what) parts.push(`This looks like ${label}: ${what}`);
+  const endSentence = (t) => (/[.!?]$/.test(t) ? t : `${t}.`);
+  if (label && what) parts.push(`This looks like ${label}: ${endSentence(what)}`);
   else if (label) parts.push(`This looks like a project called ${label}.`);
   else if (what) parts.push(`This project is described as: ${what}`);
 
@@ -76,7 +77,16 @@ export function summarizeProject(data) {
 function searchReply(obs, opened) {
   if (opened) {
     const o = lastWith(obs, (x) => /open_result/.test(x.action));
-    if (o) return truncate(clean(obsText(o)), 400);
+    if (o) {
+      const raw = clean(obsText(o));
+      const title = /Title:\s*(.+?)\s+(?:Date:|Source:|Authors?:|URL:)/.exec(raw)?.[1];
+      const date = /Date:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})/.exec(raw)?.[1];
+      const source = /Source:\s*(.+?)\s+(?:URL:|Authors?:|Date:|$)/.exec(raw)?.[1];
+      if (title) {
+        return truncate(`Opened "${title}"${date ? ` (${date})` : ""}${source ? ` from ${source}` : ""}.`, 300);
+      }
+      return truncate(raw, 400);
+    }
   }
   const s = lastWith(obs, (x) => /browser\.search/.test(x.action));
   if (!s) return "";
